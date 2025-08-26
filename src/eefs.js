@@ -69,8 +69,14 @@ export function roundUp(value, align) {
 	return (value + (align - 1)) & ~(align - 1)
 }
 
+/**
+ * @param {Uint8Array} u8
+ */
 export function stripZeroU8(u8) {
-	return u8
+	const zeroIndex = u8.findIndex(value => value === 0)
+	if(zeroIndex === -1) { return u8 }
+
+	return u8.subarray(0, zeroIndex)
 }
 
 

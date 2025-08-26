@@ -44,7 +44,9 @@ import {
  *  FileDescriptor,
  *  FileDescriptorMode,
  *  FileAttributes,
- *  Stat
+ *  Stat,
+ *  DirectoryDescriptor,
+ *  DirectoryEntry
  * } from './types.js'
  */
 
@@ -358,7 +360,6 @@ export class EEFS {
 	 * @returns {Promise<StatusCode|FileDescriptorIndex>}
 	 */
 	static async #openFile(fs, inodeIndex, flags, attributes) {
-		console.debug('#openFile')
 		const openingReadonly = (flags & O_ACCMODE) === O_RDONLY
 
 		if((flags & ~(O_RDONLY | O_WRONLY | O_RDWR | O_TRUNC | O_CREAT)) !== 0) { return EEFS_INVALID_ARGUMENT }
@@ -400,8 +401,6 @@ export class EEFS {
 	 * @returns {Promise<StatusCode|FileDescriptorIndex>}
 	 */
 	static async #createFile(fs, filename, attributes) {
-		console.debug('#createFile', filename, attributes)
-
 		if(EEFS_LIB_IS_WRITE_PROTECTED) { return EEFS_READ_ONLY_FILE_SYSTEM }
 		if(fs.inodeTable.numberOfFiles > EEFS_MAX_FILES) { return EEFS_NO_SPACE_LEFT_ON_DEVICE }
 		if(EEFS.#hasOpenCreate(fs)) { return EEFS_PERMISSION_DENIED }
@@ -418,8 +417,7 @@ export class EEFS {
 			maxFileSize: fs.inodeTable.freeMemorySize - FILE_HEADER_SIZE
 		}
 
-		const now = Date.now() / 1000
-		console.log('eefs:createFile', now)
+		const now = Date.now() / 1000 // todo fix me
 
 		const fileHeader = {
 			CRC: 0,
@@ -461,7 +459,6 @@ export class EEFS {
 		const inodeIndex = fs.fileDescriptorTable[fileDescriptor].inodeIndex
 
 		if((fs.fileDescriptorTable[fileDescriptor].mode & EEFS_FCREAT) === EEFS_FCREAT) {
-
 			const maxFileSize = Math.min(
 				roundUp(fs.fileDescriptorTable[fileDescriptor].fileSize + EEFS_DEFAULT_CREAT_SPARE_BYTES, 4),
 				inodeTable.freeMemorySize - FILE_HEADER_SIZE
@@ -484,7 +481,7 @@ export class EEFS {
 			await Common.writeFATEntry(fs.eeprom, inodeTable, inodeIndex, fileAllocationTableEntry)
 
 			const header = await Common.readHeader(fs.eeprom, inodeTable.baseAddress)
-			header.freeMemoryOffset = inodeTable.freeMemoryPointer = inodeTable.baseAddress
+			header.freeMemoryOffset = inodeTable.freeMemoryPointer - inodeTable.baseAddress
 			header.freeMemorySize = inodeTable.freeMemorySize
 			header.numberOfFiles = inodeTable.numberOfFiles
 
@@ -493,7 +490,7 @@ export class EEFS {
 		}
 		else if((fs.fileDescriptorTable[fileDescriptor].mode & EEFS_FWRITE) === EEFS_FWRITE) {
 
-			const now = Date.now() / 1000
+			const now = Date.now() / 1000 // todo fix me
 
 			const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, inodeTable.files[inodeIndex].fileHeaderPointer)
 			fileHeader.fileSize = fs.fileDescriptorTable[fileDescriptor].fileSize
@@ -652,11 +649,58 @@ export class EEFS {
 		return EEFS_SUCCESS
 	}
 
-	static openDir() { throw new Error('no impl') }
+	/**
+	 * @param {EEFSFileSystem} fs
+	 * @returns {DirectoryDescriptor|undefined}
+	 */
+	static openDir(fs) {
+		if(fs.directoryDescriptor?.inUse === true) { return undefined }
 
-	static async readDir() { throw new Error('no impl') }
+		fs.directoryDescriptor = {
+			inUse: true,
+			inodeIndex: 0,
+			inodeTable: fs.inodeTable
+		}
 
-	static closeDir() { throw new Error('no impl') }
+		return fs.directoryDescriptor
+	}
+
+	/**
+	 * @param {EEFSFileSystem} fs
+	 * @param {DirectoryDescriptor} directoryDescriptor
+	 * @returns {Promise<DirectoryEntry|undefined>}
+	 */
+	static async readDir(fs, directoryDescriptor) {
+		if(directoryDescriptor.inodeIndex >= directoryDescriptor.inodeTable.numberOfFiles) { return undefined }
+
+		const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, directoryDescriptor.inodeTable.files[directoryDescriptor.inodeIndex].fileHeaderPointer)
+
+		fs.directoryEntry = {
+			inodeIndex: directoryDescriptor.inodeIndex,
+			filename: fileHeader.filename,
+			inUse: fileHeader.inUse,
+			fileHeaderPointer: directoryDescriptor.inodeTable.files[directoryDescriptor.inodeIndex].fileHeaderPointer,
+			maxFileSize: directoryDescriptor.inodeTable.files[directoryDescriptor.inodeIndex].maxFileSize
+		}
+
+		directoryDescriptor.inodeIndex += 1
+
+		return fs.directoryEntry
+	}
+
+	/**
+	 * @param {EEFSFileSystem} fs
+	 * @param {DirectoryDescriptor} directoryDescriptor
+	 * @returns {StatusCode}
+	 */
+	static closeDir(fs, directoryDescriptor) {
+		if(directoryDescriptor.inUse === false) { return EEFS_INVALID_ARGUMENT }
+
+		directoryDescriptor.inUse = false
+		fs.directoryEntry.inUse = false
+
+		return EEFS_SUCCESS
+	}
 
 	/**
 	 * @param {EEFSFileSystem} fs
@@ -665,7 +709,6 @@ export class EEFS {
 		for(const fileDescriptor of range(0, EEFS_MAX_OPEN_FILES)) {
 			if((fs.fileDescriptorTable[fileDescriptor]?.inUse === true) &&
 				(fs.fileDescriptorTable[fileDescriptor].inodeTable === fs.inodeTable)) {
-					console.log('hasOpenFile', fs.fileDescriptorTable[fileDescriptor].inodeIndex)
 					return true
 				}
 		}
@@ -740,9 +783,7 @@ export class EEFS {
 	 * @returns {StatusCode|FileDescriptorIndex}
 	 */
 	static #getFileDescriptor(fs) {
-		console.debug('#getFileDescriptor')
 		for(const fileDescriptor of range(0, EEFS_MAX_OPEN_FILES)) {
-			console.debug('#getFileDescriptor: check', fileDescriptor)
 			if((fs.fileDescriptorTable[fileDescriptor] === undefined) || (fs.fileDescriptorTable[fileDescriptor].inUse === false)) {
 				fs.fileDescriptorTable[fileDescriptor] = {
 					inUse: true,
@@ -762,7 +803,6 @@ export class EEFS {
 					fs.fileDescriptorsHighWaterMark = fs.fileDescriptorsInUse
 				}
 
-				console.debug('#getFileDescriptor: return', fileDescriptor)
 				return fileDescriptor
 			}
 		}
@@ -849,6 +889,25 @@ export class EEFS {
 			if(fs.fileDescriptorTable[fileDescriptor]?.inUse ?? false) {
 				const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, fs.fileDescriptorTable[fileDescriptor].fileHeaderPointer)
 				yield fileHeader.filename
+			}
+		}
+	}
+
+	// ----------
+
+	/**
+	 * @param {EEFSFileSystem} fs
+	 */
+	static async *listInodes(fs) {
+		for(const inodeIndex of range(0, fs.inodeTable.numberOfFiles)) {
+			if(fs.inodeTable.files[inodeIndex] === undefined) { continue }
+			const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, fs.inodeTable.files[inodeIndex].fileHeaderPointer)
+			if(!fileHeader.inUse) { continue }
+
+			yield {
+				inodeIndex,
+				filename: fileHeader.filename,
+				directory: false
 			}
 		}
 	}

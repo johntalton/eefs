@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.js",
     "./micro": "./src/micro.js",
-    "./eeprom-array-buffer": "./src/eeprom-array-buffer.js"
+    "./eeprom-array-buffer": "./src/eeprom-array-buffer.js",
+    "./storage": "./src/storage.js"
   },
   "files": [ "./src/**/*.js"]
 }

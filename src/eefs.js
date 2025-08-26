@@ -172,8 +172,8 @@ export class Common {
 	static async readFileHeader(eeprom, decoder, offset) {
 		const ab = await eeprom.read(offset, FILE_HEADER_SIZE)
 		const dv = ArrayBuffer.isView(ab) ?
-			new DataView(ab.buffer, ab.byteOffset, FILE_HEADER_SIZE) :
-			new DataView(ab, 0, FILE_HEADER_SIZE)
+			new DataView(ab.buffer, ab.byteOffset, ab.byteLength) :
+			new DataView(ab, 0, ab.byteLength)
 
 		const littleEndian = false
 		const CRC = dv.getUint32(0, littleEndian)
@@ -253,7 +253,8 @@ export class Common {
 	 * @param {number} length
 	 */
 	static async writeData(eeprom, offset, length, buffer) {
-
+		// todo respect length
+		return eeprom.write(offset, buffer)
 	}
 }
 
@@ -406,10 +407,13 @@ export class EEFS {
 
 		const inodeIndex = fs.inodeTable.numberOfFiles
 		fs.inodeTable.numberOfFiles += 1
-		fs.inodeTable.files[inodeIndex].fileHeaderPointer = fs.inodeTable.freeMemoryPointer
-		fs.inodeTable.files[inodeIndex].maxFileSize = fs.inodeTable.freeMemorySize - FILE_HEADER_SIZE
+		fs.inodeTable.files[inodeIndex] = {
+			fileHeaderPointer: fs.inodeTable.freeMemoryPointer,
+			maxFileSize: fs.inodeTable.freeMemorySize - FILE_HEADER_SIZE
+		}
 
-		const now = Date.now()
+		const now = Date.now() / 1000
+		console.log('eefs:createFile', now)
 
 		const fileHeader = {
 			CRC: 0,
@@ -483,7 +487,7 @@ export class EEFS {
 		}
 		else if((fs.fileDescriptorTable[fileDescriptor].mode & EEFS_FWRITE) === EEFS_FWRITE) {
 
-			const now = Date.now()
+			const now = Date.now() / 1000
 
 			const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, inodeTable.files[inodeIndex].fileHeaderPointer)
 			fileHeader.fileSize = fs.fileDescriptorTable[fileDescriptor].fileSize
@@ -655,6 +659,7 @@ export class EEFS {
 		for(const fileDescriptor of range(0, EEFS_MAX_OPEN_FILES)) {
 			if((fs.fileDescriptorTable[fileDescriptor]?.inUse === true) &&
 				(fs.fileDescriptorTable[fileDescriptor].inodeTable === fs.inodeTable)) {
+					console.log('hasOpenFile', fs.fileDescriptorTable[fileDescriptor].inodeIndex)
 					return true
 				}
 		}
@@ -746,6 +751,11 @@ export class EEFS {
 				}
 
 				fs.fileDescriptorsInUse += 1
+
+				if(fs.fileDescriptorsInUse > fs.fileDescriptorsHighWaterMark) {
+					fs.fileDescriptorsHighWaterMark = fs.fileDescriptorsInUse
+				}
+
 				console.debug('#getFileDescriptor: return', fileDescriptor)
 				return fileDescriptor
 			}
@@ -763,11 +773,7 @@ export class EEFS {
 		if(!EEFS.#isValidFileDescriptor(fs, fileDescriptor)) { return EEFS_INVALID_ARGUMENT }
 
 		delete fs.fileDescriptorTable[fileDescriptor]
-		fs.fileDescriptorsInUse += 1
-
-		if(fs.fileDescriptorsInUse > fs.fileDescriptorsHighWaterMark) {
-			fs.fileDescriptorsHighWaterMark = fs.fileDescriptorsInUse
-		}
+		fs.fileDescriptorsInUse -= 1
 
 		return EEFS_SUCCESS
 	}

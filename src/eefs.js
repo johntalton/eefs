@@ -2,11 +2,11 @@ import { Common } from './common.js'
 import {
 	EEFS_ATTRIBUTE_NONE,
 	EEFS_ATTRIBUTE_READONLY,
-	EEFS_DEFAULT_CREAT_SPARE_BYTES,
+	EEFS_DEFAULT_CREATE_SPARE_BYTES,
 	EEFS_DEVICE_IS_BUSY,
 	EEFS_FCREAT,
 	EEFS_FILE_NOT_FOUND,
-	EEFS_FILESYS_MAGIC,
+	EEFS_FILESYSTEM_MAGIC,
 	EEFS_FREAD,
 	EEFS_FWRITE, EEFS_INVALID_ARGUMENT,
 	EEFS_LIB_IS_WRITE_PROTECTED,
@@ -31,6 +31,8 @@ import {
 	FILE_HEADER_SIZE
 } from './types.js'
 
+import { range, modeFromFlags, roundUp } from './utils.js'
+
 /**
  * @import {
  *  EEFSFileSystem,
@@ -38,7 +40,6 @@ import {
  *  StatusCode,
  *  InodeIndex,
  *  FileDescriptorIndex,
- *  FileDescriptor,
  *  FileDescriptorMode,
  *  FileAttributes,
  *  Stat,
@@ -46,47 +47,6 @@ import {
  *  DirectoryEntry
  * } from './types.js'
  */
-
-/**
- * @param {number} start
- * @param {number} end
- * @param {number} [step = 1]
- * @returns {Generator<number>}
- */
-export function* range(start, end, step = 1) {
-	yield start
-	if (start >= end) return
-	yield* range(start + step, end, step)
-}
-
-/**
- * @param {number} value
- * @param {number} align
- * @returns {number}
- */
-export function roundUp(value, align) {
-	return (value + (align - 1)) & ~(align - 1)
-}
-
-/**
- * @param {FileSystemFlags} flags
- * @returns {FileDescriptorMode}
- */
-export function modeFromFlags(flags) {
-	// Original code used the following, however
-	// it assumed that the flags values are the
-	// least significant bits and thus zero + 1
-	// would result in a 1, it doesn't if the
-	// flags are using high order bits for Access
-	// return (flags & O_ACCMODE) + 1
-
-	const access = flags & O_ACCMODE
-	return 0 |
-		(((access & O_RDONLY) === O_RDONLY) ? EEFS_FREAD : 0) |
-		(((access & O_WRONLY) === O_WRONLY) ? EEFS_FWRITE : 0) |
-		(((access & O_RDWR) === O_RDWR) ? EEFS_FWRITE|EEFS_FREAD : 0) |
-		(((access & O_CREAT) === O_CREAT) ? EEFS_FCREAT : 0)
-}
 
 export class EEFS {
 	/**
@@ -97,11 +57,11 @@ export class EEFS {
 	static async initFS(fs, baseAddress) {
 		const header = await Common.readHeader(fs.eeprom, baseAddress)
 
-		if(header.magic !== EEFS_FILESYS_MAGIC) { return EEFS_NO_SUCH_DEVICE }
+		if(header.magic !== EEFS_FILESYSTEM_MAGIC) { return EEFS_NO_SUCH_DEVICE }
 		if(header.version !== 1) { return EEFS_NO_SUCH_DEVICE }
 		if(header.numberOfFiles > EEFS_MAX_FILES) { return EEFS_NO_SUCH_DEVICE }
 
-		const files = await Promise.all([ ...range(0, header.numberOfFiles)].map(async i => {
+		const files = await Promise.all([ ...range(0, header.numberOfFiles - 1)].map(async i => {
 			const fatEntry = await Common.readFATEntry(fs.eeprom, fs.inodeTable, i)
 			return {
 				fileHeaderPointer: baseAddress + fatEntry.fileHeaderOffset,
@@ -131,6 +91,10 @@ export class EEFS {
 		fs.inodeTable.freeMemorySize = 0
 		fs.inodeTable.numberOfFiles = 0
 		fs.inodeTable.files = []
+
+		fs.fileDescriptorTable = []
+		fs.fileDescriptorsInUse = 0
+		fs.fileDescriptorsHighWaterMark = 0
 
 		return EEFS_SUCCESS
 	}
@@ -189,8 +153,8 @@ export class EEFS {
 		const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, fs.inodeTable.files[inodeIndex].fileHeaderPointer)
 		if(!openingReadonly && ((fileHeader.attributes & EEFS_ATTRIBUTE_READONLY) !== 0)) { return EEFS_PERMISSION_DENIED }
 
-		const fmode = EEFS.#fmode(fs, inodeIndex)
-		if(!openingReadonly && ((fmode & EEFS_FWRITE) !== 0)) { return EEFS_PERMISSION_DENIED }
+		const fMode = EEFS.#fMode(fs, inodeIndex)
+		if(!openingReadonly && ((fMode & EEFS_FWRITE) !== 0)) { return EEFS_PERMISSION_DENIED }
 
 		const fileDescriptor = EEFS.#getFileDescriptor(fs)
 		if(fileDescriptor === EEFS_NO_FREE_FILE_DESCRIPTOR) { return EEFS_NO_FREE_FILE_DESCRIPTOR }
@@ -280,7 +244,7 @@ export class EEFS {
 
 		if((fs.fileDescriptorTable[fileDescriptor].mode & EEFS_FCREAT) === EEFS_FCREAT) {
 			const maxFileSize = Math.min(
-				roundUp(fs.fileDescriptorTable[fileDescriptor].fileSize + EEFS_DEFAULT_CREAT_SPARE_BYTES, 4),
+				roundUp(fs.fileDescriptorTable[fileDescriptor].fileSize + EEFS_DEFAULT_CREATE_SPARE_BYTES, 4),
 				inodeTable.freeMemorySize - FILE_HEADER_SIZE
 			)
 
@@ -362,6 +326,7 @@ export class EEFS {
 		if((fs.fileDescriptorTable[fileDescriptor].mode & EEFS_FWRITE) === 0) { return EEFS_PERMISSION_DENIED }
 
 		const bytesToWrite = Math.min(fs.fileDescriptorTable[fileDescriptor].maxFileSize - fs.fileDescriptorTable[fileDescriptor].byteOffset, length)
+
 		await Common.writeData(fs.eeprom, fs.fileDescriptorTable[fileDescriptor].fileDataPointer, length, buffer)
 
 		fs.fileDescriptorTable[fileDescriptor].byteOffset += bytesToWrite
@@ -567,7 +532,7 @@ export class EEFS {
 	 * @param {InodeIndex} inodeIndex
 	 * @returns {FileDescriptorMode}
 	 */
-	static #fmode(fs, inodeIndex) {
+	static #fMode(fs, inodeIndex) {
 		return range(0, EEFS_MAX_OPEN_FILES)
 			.reduce((mode, fileDescriptor) => {
 				if((fs.fileDescriptorTable[fileDescriptor]?.inUse === true) &&
@@ -661,10 +626,10 @@ export class EEFS {
 	 * @param {FileDescriptorIndex} fileDescriptor
 	 * @returns {FileDescriptor|undefined}
 	 */
-	static fileDescriptor2Pointer(fs, fileDescriptor) {
-		if(!EEFS.#isValidFileDescriptor(fs, fileDescriptor)) { return }
-		return fs.fileDescriptorTable[fileDescriptor]
-	}
+	// static fileDescriptor2Pointer(fs, fileDescriptor) {
+	// 	if(!EEFS.#isValidFileDescriptor(fs, fileDescriptor)) { return }
+	// 	return fs.fileDescriptorTable[fileDescriptor]
+	// }
 
 	/**
 	 * @param {EEFSFileSystem} fs

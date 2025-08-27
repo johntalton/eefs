@@ -1,5 +1,5 @@
 import {
-	EEFS_FILESYS_MAGIC,
+	EEFS_FILESYSTEM_MAGIC,
 	EEFS_MAX_FILENAME_SIZE
 } from './defs.js'
 
@@ -10,6 +10,8 @@ import {
 	FILE_HEADER_SIZE,
 	INUSE
 } from './types.js'
+
+import { stripZeroU8 } from './utils.js'
 
 /**
  * @import {
@@ -22,21 +24,20 @@ import {
  * } from './types.js'
  */
 
+
 /**
- * @param {Uint8Array} u8
+ * @param {EEPROM} eeprom
+ * @param {number} baseAddress
+ * @param {number} byteSize
+ * @param {number} [version=1]
  */
-export function stripZeroU8(u8) {
-	const zeroIndex = u8.findIndex(value => value === 0)
-	if(zeroIndex === -1) { return u8 }
+export async function format(eeprom, baseAddress, byteSize, version = 1) {
+	if(byteSize < FILE_ALLOCATION_TABLE_HEADER_SIZE) { throw new Error('size not adequate for fat header') }
 
-	return u8.subarray(0, zeroIndex)
-}
-
-export async function format(eeprom, baseAddress, byteSize) {
   return Common.writeHeader(eeprom, baseAddress, {
     CRC: 0,
-    magic: EEFS_FILESYS_MAGIC,
-    version: 1,
+    magic: EEFS_FILESYSTEM_MAGIC,
+    version,
     freeMemoryOffset: baseAddress + FILE_ALLOCATION_TABLE_SIZE,
     freeMemorySize: byteSize - FILE_ALLOCATION_TABLE_SIZE,
     numberOfFiles: 0
@@ -50,9 +51,11 @@ export class Common {
 	 */
 	static async readHeader(eeprom, baseAddress) {
 		const ab = await eeprom.read(baseAddress, FILE_ALLOCATION_TABLE_HEADER_SIZE)
+		if(ab.byteLength < FILE_ALLOCATION_TABLE_HEADER_SIZE) { throw new Error('under size header') }
+
 		const dv = ArrayBuffer.isView(ab) ?
-			new DataView(ab.buffer, ab.byteOffset) :
-			new DataView(ab)
+			new DataView(ab.buffer, ab.byteOffset, ab.byteLength) :
+			new DataView(ab, 0, ab.byteLength)
 
 		const littleEndian = false
 		const CRC = dv.getUint32(0, littleEndian)

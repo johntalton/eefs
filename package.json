@@ -8,5 +8,10 @@
     "./eeprom-array-buffer": "./src/eeprom-array-buffer.js",
     "./storage": "./src/storage.js"
   },
-  "files": [ "./src/**/*.js"]
+  "files": [
+    "./src/**/*.js"
+  ],
+  "devDependencies": {
+    "c8": "^10.1.3"
+  }
 }

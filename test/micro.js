@@ -2,10 +2,12 @@ import { describe, it, beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-	EEFSStorageManager
-} from '@johntalton/eefs/storage'
+	MicroEEFS
+} from '@johntalton/eefs/micro'
 
-describe('EEFSStorageManager', () => {
+
+
+describe('findFile', () => {
 
 })
 

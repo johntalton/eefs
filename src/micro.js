@@ -1,6 +1,8 @@
 
 
-export async function findFile(baseAddress, filename) {
 
+export class MicroEEFS {
+  static async findFile(baseAddress, filename) {
 
+  }
 }

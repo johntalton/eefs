@@ -1,18 +1,23 @@
-
+//
 export const EEFS_LIB_IS_WRITE_PROTECTED = false
 
-
-// eefs_config.h
+//
 export const EEFS_MAX_FILES = 64
 export const EEFS_MAX_OPEN_FILES = 20
-export const EEFS_DEFAULT_CREAT_SPARE_BYTES = 512
-
-// eefs_fileapi.h
-export const EEFS_FILESYS_MAGIC = 0xEEF51234
+export const EEFS_DEFAULT_CREATE_SPARE_BYTES = 512
 export const EEFS_MAX_FILENAME_SIZE = 40
+//
+export const EEFS_FILESYSTEM_MAGIC = 0xEEF51234
 
+
+// FileAttributes
 export const EEFS_ATTRIBUTE_NONE = 0
 export const EEFS_ATTRIBUTE_READONLY = 1
+// export const EEFS_ATTRIBUTE_HIDDEN =
+// export const EEFS_ATTRIBUTE_TEMPORARY =
+// export const EEFS_ATTRIBUTE_NO_UNLINK =
+// export const EEFS_ATTRIBUTE_BINARY =
+// export const EEFS_ATTRIBUTE_DIRECTORY =
 
 // FileDescriptorMode
 export const EEFS_FREAD = 1
@@ -39,33 +44,18 @@ export const EEFS_REVISION      = (0)
 export const EEFS_MISSION_REV   = (0)
 
 
-// fcntl.h
+//
+export const O_CREAT   = 0x0002
+export const O_TRUNC   = 0x0040
+export const O_RDONLY  = 0x2000
+export const O_RDWR    = 0xA000
+export const O_WRONLY  = 0x8000
+export const O_ACCMODE = 0xF000
 
-// export const O_CLOEXEC =   0x0001
-export const O_CREAT =     0x0002
-// export const O_DIRECTORY = 0x0004
-// export const O_EXCL =      0x0008
-// export const O_NOCTTY =    0x0010
-// export const O_NOFOLLOW =  0x0020
-export const O_TRUNC =     0x0040
-// export const O_TTY_INIT =  0x0080
-// export const O_APPEND =    0x0100
-// export const O_DSYNC =     0x0200
-// export const O_NONBLOCK =  0x0400
-// export const O_RSYNC =     0x0800
-// export const O_SYNC =      0x0200
-export const O_ACCMODE =   0xF000
-
-// export const O_EXEC =      0x1000
-export const O_RDONLY =    0x2000
- export const O_RDWR =      0xA000
-// export const O_SEARCH =    0x4000
-export const O_WRONLY =    0x8000
-
-
-// export const O_RDONLY =  0x0000
-// export const O_WRONLY =  0x0001
-// export const O_RDWR =    0x0002
+//
+// export const O_CREAT   = 0x0200
+// export const O_TRUNC   = 0x0400
+// export const O_RDONLY  = 0x0000
+// export const O_WRONLY  = 0x0001
+// export const O_RDWR    = 0x0002
 // export const O_ACCMODE = 0x0003
-// export const O_CREAT =   0x0200
-// export const O_TRUNC =   0x0400

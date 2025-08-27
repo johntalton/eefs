@@ -42,8 +42,17 @@ export const INUSE = {
  */
 
 /**
+ * @typedef {number} FileSystemFlags
+ */
+
+/**
  * @typedef {number} FileDescriptorIndex
  */
+
+/**
+ * @typedef {number} InodeIndex
+ */
+
 
 
 /**
@@ -111,7 +120,7 @@ export const INUSE = {
  * @property {number} fileSize;
  * @property {number} maxFileSize;
  * @property {InodeTable} inodeTable;
- * @property {number} inodeIndex;
+ * @property {InodeIndex} inodeIndex;
  */
 
 
@@ -122,13 +131,13 @@ export const INUSE = {
 /**
  * @typedef {Object} DirectoryDescriptor
  * @property {boolean} inUse
- * @property {number} inodeIndex
+ * @property {InodeIndex} inodeIndex
  * @property {InodeTable} inodeTable
  */
 
 /**
  * @typedef {Object} DirectoryEntry
- * @property {number} inodeIndex
+ * @property {InodeIndex} inodeIndex
  * @property {string} filename
  * @property {boolean} inUse
  * @property {number} fileHeaderPointer
@@ -137,7 +146,7 @@ export const INUSE = {
 
 /**
  * @typedef {Object} Stat
- * @property {number} inodeIndex
+ * @property {InodeIndex} inodeIndex
  * @property {number} CRC
  * @property {FileAttributes} attributes
  * @property {number} fileSize

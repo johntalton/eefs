@@ -40,6 +40,7 @@ export const EEFS_MISSION_REV   = (0)
 
 
 // fcntl.h
+
 // export const O_CLOEXEC =   0x0001
 export const O_CREAT =     0x0002
 // export const O_DIRECTORY = 0x0004
@@ -60,3 +61,11 @@ export const O_RDONLY =    0x2000
  export const O_RDWR =      0xA000
 // export const O_SEARCH =    0x4000
 export const O_WRONLY =    0x8000
+
+
+// export const O_RDONLY =  0x0000
+// export const O_WRONLY =  0x0001
+// export const O_RDWR =    0x0002
+// export const O_ACCMODE = 0x0003
+// export const O_CREAT =   0x0200
+// export const O_TRUNC =   0x0400

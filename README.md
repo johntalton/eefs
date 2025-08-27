@@ -41,6 +41,23 @@ if(fd < 0) { /* not ok */ }
 
 # License
 
-The original [EEFS](https://github.com/nasa/eefs) states that is licensed under [NASA Open Source Agreement](https://en.wikipedia.org/wiki/NASA_Open_Source_Agreement).  However, all references to an official `.gov` site are absent from the web
+The original [EEFS](https://github.com/nasa/eefs) states that is licensed under [NASA Open Source Agreement](https://opensource.org/license/nasa1-3-php) and on [Wikipedia](https://en.wikipedia.org/wiki/NASA_Open_Source_Agreement).
 
-This implementation is a whole cloth original creation of the open sourced code base.
+
+A listing can be found on [NASA Site](https://code.nasa.gov/)
+
+Reference number: [GSC-16852-1](https://software.nasa.gov/software/GSC-16852-1)
+
+This implementation is a whole cloth original creation inspired by the open sourced code base.
+
+Original license as follows:
+
+```
+ Copyright (c) 2010-2014, United States government as represented by the
+ administrator of the National Aeronautics Space Administration.
+ All rights reserved. This software was created at NASAs Goddard
+ Space Flight Center pursuant to government contracts.
+
+ This is governed by the NASA Open Source Agreement and may be used,
+ distributed and modified only pursuant to the terms of that agreement.
+```

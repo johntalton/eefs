@@ -1,3 +1,4 @@
+import { Common } from './common.js'
 import {
 	EEFS_ATTRIBUTE_NONE,
 	EEFS_ATTRIBUTE_READONLY,
@@ -23,23 +24,19 @@ import {
 	O_RDONLY,
 	O_RDWR,
 	O_TRUNC,
-	O_WRONLY } from './defs.js'
+	O_WRONLY
+} from './defs.js'
+
 import {
-	FILE_ALLOCATION_TABLE_ENTRY_SIZE,
-	FILE_ALLOCATION_TABLE_HEADER_SIZE,
-	FILE_HEADER_SIZE,
-	INUSE} from './types.js'
+	FILE_HEADER_SIZE
+} from './types.js'
 
 /**
  * @import {
- *  EEPROM,
  *  EEFSFileSystem,
+ *  FileSystemFlags,
  *  StatusCode,
- *  Header,
- *  InodeTable,
- *  FileAllocationTableEntry,
- *  FileHeader,
- *  FileDescriptorTable,
+ *  InodeIndex,
  *  FileDescriptorIndex,
  *  FileDescriptor,
  *  FileDescriptorMode,
@@ -72,200 +69,24 @@ export function roundUp(value, align) {
 }
 
 /**
- * @param {Uint8Array} u8
+ * @param {FileSystemFlags} flags
+ * @returns {FileDescriptorMode}
  */
-export function stripZeroU8(u8) {
-	const zeroIndex = u8.findIndex(value => value === 0)
-	if(zeroIndex === -1) { return u8 }
+export function modeFromFlags(flags) {
+	// Original code used the following, however
+	// it assumed that the flags values are the
+	// least significant bits and thus zero + 1
+	// would result in a 1, it doesn't if the
+	// flags are using high order bits for Access
+	// return (flags & O_ACCMODE) + 1
 
-	return u8.subarray(0, zeroIndex)
+	const access = flags & O_ACCMODE
+	return 0 |
+		(((access & O_RDONLY) === O_RDONLY) ? EEFS_FREAD : 0) |
+		(((access & O_WRONLY) === O_WRONLY) ? EEFS_FWRITE : 0) |
+		(((access & O_RDWR) === O_RDWR) ? EEFS_FWRITE|EEFS_FREAD : 0) |
+		(((access & O_CREAT) === O_CREAT) ? EEFS_FCREAT : 0)
 }
-
-
-export class Common {
-	/**
-	 * @param {number} baseAddress
-	 * @returns {Promise<Header>}
-	 */
-	static async readHeader(eeprom, baseAddress) {
-		const ab = await eeprom.read(baseAddress, FILE_ALLOCATION_TABLE_HEADER_SIZE)
-		const dv = ArrayBuffer.isView(ab) ?
-			new DataView(ab.buffer, ab.byteOffset) :
-			new DataView(ab)
-
-		const littleEndian = false
-		const CRC = dv.getUint32(0, littleEndian)
-		const magic = dv.getUint32(4, littleEndian)
-		const version = dv.getUint32(8, littleEndian)
-		const freeMemoryOffset = dv.getUint32(12, littleEndian)
-		const freeMemorySize = dv.getUint32(16, littleEndian)
-		const numberOfFiles = dv.getUint32(20, littleEndian)
-
-		return {
-			CRC,
-			magic,
-			version,
-			freeMemoryOffset,
-			freeMemorySize,
-			numberOfFiles
-		}
-	}
-
-	/**
-	 * @param {EEPROM} eeprom
-	 */
-	static async writeHeader(eeprom, baseAddress, header) {
-		const headerBuffer = new ArrayBuffer(FILE_ALLOCATION_TABLE_HEADER_SIZE)
-		const dv = new DataView(headerBuffer)
-
-		const littleEndian = false
-		dv.setUint32(0, header.CRC, littleEndian)
-		dv.setUint32(4, header.magic, littleEndian)
-		dv.setUint32(8, header.version, littleEndian)
-		dv.setUint32(12, header.freeMemoryOffset, littleEndian)
-		dv.setUint32(16, header.freeMemorySize, littleEndian)
-		dv.setUint32(20, header.numberOfFiles, littleEndian)
-
-		return eeprom.write(baseAddress, headerBuffer)
-	}
-
-	/**
-	 * @param {EEPROM} eeprom
-	 * @param {InodeTable} inodeTable
-	 * @param {number} inodeIndex
-	 * @returns {Promise<FileAllocationTableEntry>}
-	 */
-	static async readFATEntry(eeprom, inodeTable, inodeIndex) {
-		const offset = inodeTable.baseAddress + FILE_ALLOCATION_TABLE_HEADER_SIZE + (inodeIndex * FILE_ALLOCATION_TABLE_ENTRY_SIZE)
-		const ab = await eeprom.read(offset, FILE_ALLOCATION_TABLE_ENTRY_SIZE)
-		const dv = ArrayBuffer.isView(ab) ?
-			new DataView(ab.buffer, ab.byteOffset, ab.byteLength) :
-			new DataView(ab, 0, ab.byteLength)
-
-		const littleEndian = false
-		const fileHeaderOffset = dv.getUint32(0, littleEndian)
-		const maxFileSize = dv.getUint32(4, littleEndian)
-
-		return {
-			fileHeaderOffset,
-			maxFileSize
-		}
-	}
-
-	/**
-	 * @param {EEPROM} eeprom
-	 * @param {InodeTable} inodeTable
-	 * @param {number} inodeIndex
-	 * @param {FileAllocationTableEntry} fatEntry
-	 * @returns {Promise}
-	 */
-	static async writeFATEntry(eeprom, inodeTable, inodeIndex, fatEntry) {
-		const offset = inodeTable.baseAddress + FILE_ALLOCATION_TABLE_HEADER_SIZE + (inodeIndex * FILE_ALLOCATION_TABLE_ENTRY_SIZE)
-		const ab = new ArrayBuffer(FILE_ALLOCATION_TABLE_ENTRY_SIZE)
-		const dv = new DataView(ab)
-
-		const littleEndian = false
-		dv.setUint32(0, fatEntry.fileHeaderOffset, littleEndian)
-		dv.setUint32(4, fatEntry.maxFileSize, littleEndian)
-
-		return eeprom.write(offset, ab)
-	}
-
-
-	/**
-	 * @param {EEPROM} eeprom
-	 * @param {number} offset
-	 * @returns {Promise<FileHeader>}
-	 */
-	static async readFileHeader(eeprom, decoder, offset) {
-		const ab = await eeprom.read(offset, FILE_HEADER_SIZE)
-		const dv = ArrayBuffer.isView(ab) ?
-			new DataView(ab.buffer, ab.byteOffset, ab.byteLength) :
-			new DataView(ab, 0, ab.byteLength)
-
-		const littleEndian = false
-		const CRC = dv.getUint32(0, littleEndian)
-		const inUse = dv.getUint32(4, littleEndian)
-		const attributes = dv.getUint32(8, littleEndian)
-		const fileSize = dv.getUint32(12, littleEndian)
-
-		const modificationDate = dv.getUint32(16, littleEndian)
-		const creationDate = dv.getUint32(20, littleEndian)
-
-		const filenameBuffer = stripZeroU8(new Uint8Array(dv.buffer, dv.byteOffset + 24, EEFS_MAX_FILENAME_SIZE))
-		const filename = decoder.decode(filenameBuffer)
-
-		return {
-			CRC,
-			inUse: inUse === INUSE.TRUE,
-			attributes,
-			fileSize,
-			modificationDate,
-			creationDate,
-			filename
-		}
-	}
-
-	/**
-	 * @param {EEPROM} eeprom
-	 * @param {TextEncoder} encoder
-	 * @param {number} offset
-	 * @param {FileHeader} fileHeader
-	 */
-	static async writeFileHeader(eeprom, encoder, offset, fileHeader) {
-		const fileHeaderBuffer = new ArrayBuffer(FILE_HEADER_SIZE)
-		const dv = new DataView(fileHeaderBuffer)
-
-		const littleEndian = false
-		dv.setUint32(0, fileHeader.CRC, littleEndian)
-		dv.setUint32(4, fileHeader.inUse ? INUSE.TRUE : INUSE.FALSE, littleEndian)
-		dv.setUint32(8, fileHeader.attributes, littleEndian)
-		dv.setUint32(12, fileHeader.fileSize, littleEndian)
-		dv.setUint32(16, fileHeader.modificationDate, littleEndian)
-		dv.setUint32(20, fileHeader.creationDate, littleEndian)
-
-		const filenameBufferU8 = encoder.encode(fileHeader.filename)
-		const fileHeaderBufferU8 = new Uint8Array(fileHeaderBuffer, dv.byteOffset + 24, EEFS_MAX_FILENAME_SIZE)
-		fileHeaderBufferU8.set(filenameBufferU8)
-
-		return eeprom.write(offset, fileHeaderBuffer)
-	}
-
-
-	/**
-	 * @param {EEPROM} eeprom
-	 * @param {number} offset
-	 * @param {number} length
-	 * @param {AllowSharedBufferSource} target
-	 */
-	static async readData(eeprom, offset, length, target) {
-		const ab = await eeprom.read(offset, length, target)
-
-		// const targetU8 = ArrayBuffer.isView(target) ?
-		// 	new Uint8Array(target.buffer, target.byteOffset, target.byteLength) :
-		// 	new Uint8Array(target, 0, target.byteLength)
-
-		// const u8 = ArrayBuffer.isView(ab) ?
-		// 	new Uint8Array(ab.buffer, ab.byteOffset, ab.byteLength) :
-		// 	new Uint8Array(ab, 0, ab.byteLength)
-
-		// targetU8.set(u8)
-
-		return ab
-	}
-
-	/**
-	 * @param {EEPROM} eeprom
-	 * @param {number} offset
-	 * @param {AllowSharedBufferSource} buffer
-	 * @param {number} length
-	 */
-	static async writeData(eeprom, offset, length, buffer) {
-		// todo respect length
-		return eeprom.write(offset, buffer)
-	}
-}
-
 
 export class EEFS {
 	/**
@@ -317,18 +138,18 @@ export class EEFS {
 	/**
 	 * @param {EEFSFileSystem} fs
 	 * @param {string} filename
-	 * @param {number} flags
-	 * @param {FileAttributes} attributes
+	 * @param {FileSystemFlags} flags
+	 * @param {FileAttributes} [attributes = EEFS_ATTRIBUTE_NONE]
 	 * @returns {Promise<StatusCode|FileDescriptorIndex>}
 	 */
-	static async open(fs, filename, flags, attributes) {
+	static async open(fs, filename, flags, attributes = EEFS_ATTRIBUTE_NONE) {
 		if(!EEFS.#isValidFileName(fs, filename)){ return EEFS_INVALID_ARGUMENT }
 
 		const inodeIndex = await EEFS.#findFile(fs, filename)
 		if(inodeIndex !== EEFS_FILE_NOT_FOUND) {
 			return EEFS.#openFile(fs, inodeIndex, flags, attributes)
 		}
-		else if(flags & O_CREAT) {
+		else if((flags & O_CREAT) !== 0) {
 			return EEFS.#createFile(fs, filename, EEFS_ATTRIBUTE_NONE)
 		}
 
@@ -338,10 +159,10 @@ export class EEFS {
 	/**
 	 * @param {EEFSFileSystem} fs
 	 * @param {string} filename
-	 * @param {FileAttributes} attributes
+	 * @param {FileAttributes} [attributes = EEFS_ATTRIBUTE_NONE]
 	 * @returns {Promise<StatusCode|FileDescriptorIndex>}
 	 */
-	static async create(fs, filename, attributes) {
+	static async create(fs, filename, attributes = EEFS_ATTRIBUTE_NONE) {
 		if(!EEFS.#isValidFileName(fs, filename)) { return EEFS_INVALID_ARGUMENT }
 
 		const inodeIndex = await EEFS.#findFile(fs, filename)
@@ -354,8 +175,8 @@ export class EEFS {
 
 	/**
 	* @param {EEFSFileSystem} fs
-	 * @param {number} inodeIndex
-	 * @param {number} flags
+	 * @param {InodeIndex} inodeIndex
+	 * @param {FileSystemFlags} flags
 	 * @param {FileAttributes} attributes
 	 * @returns {Promise<StatusCode|FileDescriptorIndex>}
 	 */
@@ -376,11 +197,11 @@ export class EEFS {
 
 		const openingWriteOnly = (flags & O_ACCMODE) == O_WRONLY
 		const openingReadWrite = (flags & O_ACCMODE) == O_RDWR
-		const truncate = (openingWriteOnly || openingReadWrite)  && (flags & O_TRUNC)
+		const truncate = (openingWriteOnly || openingReadWrite) && ((flags & O_TRUNC) !== 0)
 
 		fs.fileDescriptorTable[fileDescriptor] = {
 			inUse: true,
-			mode: (flags & O_ACCMODE) + 1,
+			mode: modeFromFlags(flags),
 			fileHeaderPointer: fs.inodeTable.files[inodeIndex].fileHeaderPointer,
 			fileDataPointer: fs.inodeTable.files[inodeIndex].fileHeaderPointer + FILE_HEADER_SIZE,
 			byteOffset: 0,
@@ -442,7 +263,6 @@ export class EEFS {
 			inodeTable: fs.inodeTable,
 			inodeIndex
 		}
-
 
 		return fileDescriptor
 	}
@@ -542,7 +362,6 @@ export class EEFS {
 		if((fs.fileDescriptorTable[fileDescriptor].mode & EEFS_FWRITE) === 0) { return EEFS_PERMISSION_DENIED }
 
 		const bytesToWrite = Math.min(fs.fileDescriptorTable[fileDescriptor].maxFileSize - fs.fileDescriptorTable[fileDescriptor].byteOffset, length)
-
 		await Common.writeData(fs.eeprom, fs.fileDescriptorTable[fileDescriptor].fileDataPointer, length, buffer)
 
 		fs.fileDescriptorTable[fileDescriptor].byteOffset += bytesToWrite
@@ -551,7 +370,6 @@ export class EEFS {
 		if(fs.fileDescriptorTable[fileDescriptor].byteOffset > fs.fileDescriptorTable[fileDescriptor].fileSize) {
 			fs.fileDescriptorTable[fileDescriptor].fileSize = fs.fileDescriptorTable[fileDescriptor].byteOffset
 		}
-
 
 		return EEFS_SUCCESS
 	}
@@ -613,6 +431,7 @@ export class EEFS {
 	 * @param {EEFSFileSystem} fs
 	 * @param {FileDescriptorIndex} fileDescriptor
 	 * @param {Stat} stat
+	 * @returns {Promise<StatusCode>}
 	 */
 	static async fstat(fs, fileDescriptor, stat) {
 		if(!EEFS.#isValidFileDescriptor(fs, fileDescriptor)) { return EEFS_INVALID_ARGUMENT }
@@ -633,6 +452,7 @@ export class EEFS {
 	 * @param {EEFSFileSystem} fs
 	 * @param {string} filename
 	 * @param {FileAttributes} attributes
+	 * @returns {Promise<StatusCode>}
 	 */
 	static async setFileAttributes(fs, filename, attributes) {
 		if((attributes !== EEFS_ATTRIBUTE_NONE) && (attributes !== EEFS_ATTRIBUTE_READONLY)) { return EEFS_INVALID_ARGUMENT }
@@ -744,7 +564,7 @@ export class EEFS {
 
 	/**
 	 * @param {EEFSFileSystem} fs
-	 * @param {number} inodeIndex
+	 * @param {InodeIndex} inodeIndex
 	 * @returns {FileDescriptorMode}
 	 */
 	static #fmode(fs, inodeIndex) {
@@ -763,7 +583,7 @@ export class EEFS {
 	/**
 	 * @param {EEFSFileSystem} fs
 	 * @param {string} filename
-	 * @returns {Promise<StatusCode|number>}
+	 * @returns {Promise<StatusCode|InodeIndex>}
 	 */
 	static async #findFile(fs, filename) {
 		for(const inodeIndex of range(0, fs.inodeTable.numberOfFiles)) {

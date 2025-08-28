@@ -10,11 +10,20 @@ import {
 	EEFS_DEVICE_IS_BUSY,
 	EEFS_INVALID_ARGUMENT,
 	EEFS_PERMISSION_DENIED,
-	EEFS_FILE_NOT_FOUND
+	EEFS_FILE_NOT_FOUND,
+	O_RDWR,
+	O_ACCMODE,
+	O_TRUNC,
+	O_WRONLY,
+	EEFS_MAX_OPEN_FILES,
+	EEFS_NO_FREE_FILE_DESCRIPTOR,
+	EEFS_ATTRIBUTE_READONLY,
+	EEFS_ATTRIBUTE_NONE
 } from '@johntalton/eefs'
 import { EEPROMArrayBuffer } from '@johntalton/eefs/eeprom-array-buffer'
 
 import { commonBeforeEach, DEFAULT_BASE_ADDRESS, DEFAULT_FS, DEFAULT_HELPERS } from './test-helpers.js'
+import { range } from '../src/utils.js'
 
 describe('EEFS (no context)', () => {
 	it('requires minimum eeprom size', async () => {
@@ -115,17 +124,28 @@ describe('EEFS (empty)', () => {
 		assert.equal(status, EEFS_SUCCESS)
 	})
 
-	it('should disallow undefined filename', async () => {
+	it('should disallow open undefined filename', async () => {
 		const fd = await EEFS.open(context.fs, undefined, O_CREAT)
 		assert.equal(fd, EEFS_INVALID_ARGUMENT)
 	})
 
-	it('should disallow non string filename', async () => {
+	it('should disallow open non string filename', async () => {
 		const fd = await EEFS.open(context.fs, true, O_CREAT)
 		assert.equal(fd, EEFS_INVALID_ARGUMENT)
 	})
 
-	it('should disallow empty filename', async () => {
+	it('should disallow open with long filename', async () => {
+		const filename = '1234567890123456789012345678901234567890-extra'
+		const fd = await EEFS.open(context.fs, filename, O_CREAT)
+		assert.equal(fd, EEFS_INVALID_ARGUMENT)
+	})
+
+	it('should error create with invalid filename', async () => {
+		const fd = await EEFS.create(context.fs, '')
+		assert.equal(fd, EEFS_INVALID_ARGUMENT)
+	})
+
+	it('should error open with invalid filename', async () => {
 		const fd = await EEFS.open(context.fs, '', O_CREAT)
 		assert.equal(fd, EEFS_INVALID_ARGUMENT)
 	})
@@ -135,11 +155,16 @@ describe('EEFS (empty)', () => {
 		assert.equal(fd, EEFS_FILE_NOT_FOUND)
 	})
 
-	it('should create open with flag', async () => {
+	it('should create from open with flag', async () => {
 		const fd = await EEFS.open(context.fs, 'test1.tmp', O_CREAT)
 		assert.ok(fd >= 0)
 
 		await EEFS.close(context.fs, fd)
+	})
+
+	it('should not create from open without flag', async () => {
+		const fd = await EEFS.open(context.fs, 'test1.tmp', O_RDWR)
+		assert.equal(fd, EEFS_FILE_NOT_FOUND)
 	})
 
 	it('should create', async () => {
@@ -175,6 +200,7 @@ describe('EEFS (empty)', () => {
 		assert.ok(has)
 		await EEFS.close(context.fs, fd)
 	})
+
 })
 
 describe('EEFS (with files)', () => {
@@ -186,7 +212,7 @@ describe('EEFS (with files)', () => {
 
 	afterEach(async () => {
 		const status = await EEFS.freeFS(context.fs)
-		assert.equal(status, EEFS_SUCCESS)
+		assert.equal(status, EEFS_SUCCESS, 'afterEach failure (open file?)')
 	})
 
 	it('should have files', async () => {
@@ -214,6 +240,233 @@ describe('EEFS (with files)', () => {
 		assert.ok(last.done)
 		assert.equal(last.value, undefined)
 	})
+
+	it('should open from create', async () => {
+		const fd = await EEFS.create(context.fs, 'README.md')
+		assert.ok(fd >= 0)
+
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should open from open', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDWR)
+		assert.ok(fd >= 0)
+
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should fail open with unknown flags', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', ~(O_ACCMODE|O_CREAT|O_TRUNC))
+		assert.equal(fd, EEFS_INVALID_ARGUMENT)
+	})
+
+	it('should fail to open for write with readonly file', async () => {
+		const fd = await EEFS.open(context.fs, '🔒.json', O_WRONLY)
+		assert.equal(fd, EEFS_PERMISSION_DENIED)
+	})
+
+	it('show not allow opening for write if existing open for write', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDWR)
+		assert.ok(fd >= 0)
+
+		const status = await EEFS.open(context.fs, 'README.md', O_WRONLY)
+		assert.equal(status,EEFS_PERMISSION_DENIED )
+
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should not allow open after max', async () => {
+		const fds = await Promise.all(range(0, EEFS_MAX_OPEN_FILES - 1).map(async i => {
+			const fd = await EEFS.open(context.fs, 'README.md', O_RDONLY)
+			assert.ok(fd >= 0)
+			return fd
+		}))
+
+		const count = EEFS.getFileDescriptorsInUse(context.fs)
+		assert.equal(count, 20)
+
+		const status = await EEFS.open(context.fs, 'README.md', O_RDONLY)
+		assert.equal(status, EEFS_NO_FREE_FILE_DESCRIPTOR)
+
+		await Promise.all(fds.map(async fd => {
+			const status = await EEFS.close(context.fs, fd)
+			assert.equal(status, EEFS_SUCCESS)
+		}))
+	})
+
+	it('should not allow create after max', async () => {
+		const fds = await Promise.all(range(0, EEFS_MAX_OPEN_FILES - 1).map(async i => {
+			const fd = await EEFS.open(context.fs, 'README.md', O_RDONLY)
+			assert.ok(fd >= 0)
+			return fd
+		}))
+
+		const count = EEFS.getFileDescriptorsInUse(context.fs)
+		assert.equal(count, 20)
+
+		const status = await EEFS.create(context.fs, 'NewFile.txt')
+		assert.equal(status, EEFS_NO_FREE_FILE_DESCRIPTOR)
+
+		await Promise.all(fds.map(async fd => {
+			const status = await EEFS.close(context.fs, fd)
+			assert.equal(status, EEFS_SUCCESS)
+		}))
+	})
+
+	it('should not fstat invalid fd', async () => {
+		const stat = {}
+		const status = await EEFS.fstat(context.fs, 42, stat)
+		assert.equal(status, EEFS_INVALID_ARGUMENT)
+	})
+
+	it('should fstat open file', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDONLY)
+		assert.ok(fd >= 0)
+
+		const stat = {}
+		const status = await EEFS.fstat(context.fs, fd, stat)
+		assert.equal(status, EEFS_SUCCESS)
+
+		assert.equal(stat.filename, 'README.md')
+		assert.equal(stat.fileSize, 54)
+
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should not read invalid fd', async () => {
+		const ab = new ArrayBuffer(64)
+		const bytesRead = await EEFS.read(context.fs, 42, 0, ab)
+		assert.equal(bytesRead, EEFS_INVALID_ARGUMENT)
+	})
+
+	it('should not read zero bytes', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDONLY)
+		assert.ok(fd >= 0)
+
+		const ab = new ArrayBuffer(64)
+		const bytesRead = await EEFS.read(context.fs, fd, 0, ab)
+		assert.equal(bytesRead, EEFS_INVALID_ARGUMENT)
+
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should not read into zero bytes buffer', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDONLY)
+		assert.ok(fd >= 0)
+
+		const ab = new ArrayBuffer(0)
+		const bytesRead = await EEFS.read(context.fs, fd, 54, ab)
+		assert.equal(bytesRead, EEFS_INVALID_ARGUMENT)
+
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should not read if not open for reading', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_WRONLY)
+		assert.ok(fd >= 0)
+
+		const ab = new ArrayBuffer(64)
+		const bytesRead = await EEFS.read(context.fs, fd, 54, ab)
+		assert.equal(bytesRead, EEFS_PERMISSION_DENIED)
+
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should read file', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDONLY)
+		assert.ok(fd >= 0)
+
+		const ab = new ArrayBuffer(64)
+		const bytesRead = await EEFS.read(context.fs, fd, 54, ab)
+		assert.ok(bytesRead >= 0)
+		assert.equal(bytesRead, 54)
+
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should not allow rename of invalid source file name', async () => {
+		const status = await EEFS.rename(context.fs, '', 'AnythingValid')
+		assert.equal(status, EEFS_INVALID_ARGUMENT)
+	})
+
+	it('should not allow rename of invalid target file name', async () => {
+		const status = await EEFS.rename(context.fs, 'README.md', '')
+		assert.equal(status, EEFS_INVALID_ARGUMENT)
+	})
+
+	it('should not allow rename of non-existent file name', async () => {
+		const status = await EEFS.rename(context.fs, 'FakeFile.txt', 'New.txt')
+		assert.equal(status, EEFS_FILE_NOT_FOUND)
+	})
+
+	it('should not allow rename to existing target', async () => {
+		const status = await EEFS.rename(context.fs, 'FakeFile.txt', 'README.md')
+		assert.equal(status, EEFS_PERMISSION_DENIED)
+	})
+
+	it('should not allow rename of readonly file', async () => {
+		const status = await EEFS.rename(context.fs, '🔒.json', '🔓.json')
+		assert.equal(status, EEFS_PERMISSION_DENIED)
+	})
+
+	it('should allow rename of file', async () => {
+		const status = await EEFS.rename(context.fs, 'README.md', 'README.old')
+		assert.equal(status, EEFS_SUCCESS)
+	})
+
+	it('should not stat invalid filename', async () => {
+		const stat = {}
+		const status = await EEFS.stat(context.fs, '', stat)
+		assert.equal(status, EEFS_INVALID_ARGUMENT)
+	})
+
+	it('should not setAttribute to invalid values', async () => {
+		const status = await EEFS.setFileAttributes(context.fs, 'README.md', 42)
+		assert.equal(status, EEFS_INVALID_ARGUMENT)
+	})
+
+	it('should not setAttribute of invalid filename=', async () => {
+		const status = await EEFS.setFileAttributes(context.fs, '', EEFS_ATTRIBUTE_READONLY)
+		assert.equal(status, EEFS_INVALID_ARGUMENT)
+	})
+
+	it('should not setAttribute to non-existent file', async () => {
+		const status = await EEFS.setFileAttributes(context.fs, 'FakeFile', EEFS_ATTRIBUTE_READONLY)
+		assert.equal(status, EEFS_FILE_NOT_FOUND)
+	})
+
+	it('should not setAttribute of readonly file', { skip: 'succeeds - but should it?' }, async () => {
+		const status = await EEFS.setFileAttributes(context.fs, '🔒.json', EEFS_ATTRIBUTE_NONE)
+		assert.equal(status, EEFS_PERMISSION_DENIED)
+	})
+
+	it('should setAttribute of valid file', async () => {
+		const status = await EEFS.setFileAttributes(context.fs, 'README.md', EEFS_ATTRIBUTE_READONLY)
+		assert.equal(status, EEFS_SUCCESS)
+	})
+
+	it('should list open files', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDONLY)
+		assert.ok(fd >= 0)
+
+		const iter = EEFS.listOpenFiles(context.fs)
+		const item = await iter.next()
+		assert.equal(item.done, false)
+		assert.equal(item.value, 'README.md')
+
+		const last = await iter.next()
+		assert.equal(last.done, true)
+		assert.equal(last.value, undefined)
+
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should not allow invalid fd (negative value)', async () => {
+		const status = await EEFS.close(context.fs, -42)
+		assert.equal(status, EEFS_INVALID_ARGUMENT)
+	})
+
+
 })
 
 describe('EEFS (full)', () => {
@@ -242,9 +495,12 @@ describe('EEFS (full)', () => {
 		assert.equal(stat.filename, 'spam-0')
 		assert.equal(stat.fileSize, 61)
 		assert.equal(stat.inodeIndex, 3)
+
+		// 61 + 512 = 573 align 4 = 576
+		assert.equal(context.fs.inodeTable.files[stat.inodeIndex].maxFileSize, 576)
 	})
 
-	it('should have spam-2 with stats', async () => {
+	it('should have spam-2 with stats and truncated max', async () => {
 		const stat = {}
 		const status = await EEFS.stat(context.fs, 'spam-2', stat)
 		assert.equal(status, EEFS_SUCCESS)
@@ -252,12 +508,25 @@ describe('EEFS (full)', () => {
 		assert.equal(stat.filename, 'spam-2')
 		assert.equal(stat.fileSize, 61)
 		assert.equal(stat.inodeIndex, 5)
+
+		// truncated: 61 + 512 = 573 align 4 = 576
+		assert.equal(context.fs.inodeTable.files[stat.inodeIndex].maxFileSize, 412)
 	})
 
 	it('should not have spam-3', async () => {
 		const stat = {}
 		const status = await EEFS.stat(context.fs, 'spam-3', stat)
 		assert.equal(status, EEFS_FILE_NOT_FOUND)
+	})
+
+	it('should re-initFS', async () => {
+		const freeStatus = EEFS.freeFS(context.fs)
+		assert.equal(freeStatus, EEFS_SUCCESS)
+		const status = await EEFS.initFS(context.fs, DEFAULT_BASE_ADDRESS)
+		assert.equal(status, EEFS_SUCCESS)
+
+		assert.equal(context.fs.inodeTable.numberOfFiles, 6)
+
 	})
 })
 

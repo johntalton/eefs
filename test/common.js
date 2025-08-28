@@ -5,11 +5,21 @@ import {
 	Common,
 	FILE_ALLOCATION_TABLE_ENTRY_SIZE,
 	FILE_ALLOCATION_TABLE_HEADER_SIZE,
-	FILE_HEADER_SIZE
+	FILE_HEADER_SIZE,
+	format
 } from '@johntalton/eefs'
 
 describe('format', () => {
+	it('should reject if buffer is not minimum size', async () => {
+		const eeprom = {
+			async read(offset, length, into) { return new ArrayBuffer(0) },
+			async write(offset, buffer) {}
+		}
 
+		const baseAddress = 0
+		const byteSize = 16
+		await assert.rejects(async () => await format(eeprom, baseAddress, byteSize))
+	})
 })
 
 describe('Common', () => {
@@ -154,7 +164,25 @@ describe('Common', () => {
 	})
 
 	describe('writeFileHeader', () => {
-		it('should ', async () => {})
+		it('should write with inUse false', async () => {
+			const eeprom = {
+				async read(offset, length, into) { return new ArrayBuffer(0) },
+				async write(offset, buffer) { }
+			}
+
+			const encoder = new TextEncoder()
+			const offset = 0
+			const fileHeader = {
+				CRC: 0,
+				inUse: false,
+				attributes: 0,
+				fileSize: 42,
+				modificationDate: 0,
+				creationDate: 0,
+				filename: 'just a test'
+			}
+			Common.writeFileHeader(eeprom, encoder, offset, fileHeader)
+		})
 	})
 
 	describe('readData', () => {

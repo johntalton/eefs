@@ -85,12 +85,12 @@ export async function commonBeforeEach(doFormat = false, doInit = false, addFile
 
 					for(const id of range(0, count - 1)) {
 						try {
-							console.log('fill file count', id)
+							// console.log('fill file count', id)
 							await addFile(context.fs, `spam-${id}`, `Content for ${id}! of some arbitrary size, less then spare bytes `)
 						}
 						catch(e) {
 							// full
-							console.log('fill file full', e, context.fs.inodeTable.freeMemorySize, context.fs.inodeTable.numberOfFiles)
+							// console.log('fill file full', e, context.fs.inodeTable.freeMemorySize, context.fs.inodeTable.numberOfFiles)
 							break
 						}
 

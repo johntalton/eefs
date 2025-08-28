@@ -19,8 +19,8 @@ export class MicroEEFS {
 	 */
 	static async findFile(eeprom, baseAddress, filename, decoder) {
 		const header = await Common.readHeader(eeprom, baseAddress)
-		if(header.magic !== EEFS_FILESYSTEM_MAGIC) { throw new Error('EEFS_NO_SUCH_DEVICE') }
-		if(header.version !== EEFS_FILESYSTEM_VERSION) { throw new Error('EEFS_NO_SUCH_DEVICE') }
+		if(header.magic !== EEFS_FILESYSTEM_MAGIC) { throw new Error('Invalid Magic') }
+		if(header.version !== EEFS_FILESYSTEM_VERSION) { throw new Error('Invalid Version') }
 
 		for(const inodeIndex of range(0, header.numberOfFiles - 1)) {
 			const fatEntryOffset = baseAddress + FILE_ALLOCATION_TABLE_HEADER_SIZE + (inodeIndex * FILE_ALLOCATION_TABLE_ENTRY_SIZE)

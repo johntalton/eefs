@@ -45,9 +45,7 @@ import { range, modeFromFlags, roundUp } from './utils.js'
  *  FileDescriptorIndex,
  *  FileDescriptorMode,
  *  FileAttributes,
- *  Stat,
- *  DirectoryDescriptor,
- *  DirectoryEntry
+ *  Stat
  * } from './types.js'
  */
 
@@ -87,7 +85,7 @@ export class EEFS {
 	 */
 	static freeFS(fs) {
 		if(EEFS.hasOpenFiles(fs)) { return EEFS_DEVICE_IS_BUSY }
-		if(EEFS.hasOpenDir(fs)) { return EEFS_DEVICE_IS_BUSY }
+		// if(EEFS.hasOpenDir(fs)) { return EEFS_DEVICE_IS_BUSY }
 
 		fs.inodeTable.baseAddress = 0
 		fs.inodeTable.freeMemoryPointer = 0
@@ -300,6 +298,7 @@ export class EEFS {
 	 */
 	static async read(fs, fileDescriptor, length, target) {
 		if(!EEFS.#isValidFileDescriptor(fs, fileDescriptor)) { return EEFS_INVALID_ARGUMENT }
+		if(length <= 0) { return EEFS_INVALID_ARGUMENT }
 		if(target.byteLength <= 0) { return EEFS_INVALID_ARGUMENT }
 
 		if((fs.fileDescriptorTable[fileDescriptor].mode & EEFS_FREAD) === 0) { return EEFS_PERMISSION_DENIED }
@@ -442,60 +441,60 @@ export class EEFS {
 	 * @param {EEFSFileSystem} fs
 	 * @returns {DirectoryDescriptor|undefined}
 	 */
-	static openDir(fs) {
-		if(fs.directoryDescriptor?.inUse === true) { return undefined }
+	// static openDir(fs) {
+	// 	if(fs.directoryDescriptor?.inUse === true) { return undefined }
 
-		fs.directoryDescriptor = {
-			inUse: true,
-			inodeIndex: 0,
-			inodeTable: fs.inodeTable
-		}
+	// 	fs.directoryDescriptor = {
+	// 		inUse: true,
+	// 		inodeIndex: 0,
+	// 		inodeTable: fs.inodeTable
+	// 	}
 
-		return fs.directoryDescriptor
-	}
+	// 	return fs.directoryDescriptor
+	// }
 
 	/**
 	 * @param {EEFSFileSystem} fs
 	 * @param {DirectoryDescriptor} directoryDescriptor
 	 * @returns {Promise<DirectoryEntry|undefined>}
 	 */
-	static async readDir(fs, directoryDescriptor) {
-		if(directoryDescriptor.inodeIndex >= directoryDescriptor.inodeTable.numberOfFiles) { return undefined }
+	// static async readDir(fs, directoryDescriptor) {
+	// 	if(directoryDescriptor.inodeIndex >= directoryDescriptor.inodeTable.numberOfFiles) { return undefined }
 
-		const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, directoryDescriptor.inodeTable.files[directoryDescriptor.inodeIndex].fileHeaderPointer)
+	// 	const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, directoryDescriptor.inodeTable.files[directoryDescriptor.inodeIndex].fileHeaderPointer)
 
-		fs.directoryEntry = {
-			inodeIndex: directoryDescriptor.inodeIndex,
-			filename: fileHeader.filename,
-			inUse: fileHeader.inUse,
-			fileHeaderPointer: directoryDescriptor.inodeTable.files[directoryDescriptor.inodeIndex].fileHeaderPointer,
-			maxFileSize: directoryDescriptor.inodeTable.files[directoryDescriptor.inodeIndex].maxFileSize
-		}
+	// 	fs.directoryEntry = {
+	// 		inodeIndex: directoryDescriptor.inodeIndex,
+	// 		filename: fileHeader.filename,
+	// 		inUse: fileHeader.inUse,
+	// 		fileHeaderPointer: directoryDescriptor.inodeTable.files[directoryDescriptor.inodeIndex].fileHeaderPointer,
+	// 		maxFileSize: directoryDescriptor.inodeTable.files[directoryDescriptor.inodeIndex].maxFileSize
+	// 	}
 
-		directoryDescriptor.inodeIndex += 1
+	// 	directoryDescriptor.inodeIndex += 1
 
-		return fs.directoryEntry
-	}
+	// 	return fs.directoryEntry
+	// }
 
 	/**
 	 * @param {EEFSFileSystem} fs
 	 * @param {DirectoryDescriptor} directoryDescriptor
 	 * @returns {StatusCode}
 	 */
-	static closeDir(fs, directoryDescriptor) {
-		if(directoryDescriptor.inUse === false) { return EEFS_INVALID_ARGUMENT }
+	// static closeDir(fs, directoryDescriptor) {
+	// 	if(directoryDescriptor.inUse === false) { return EEFS_INVALID_ARGUMENT }
 
-		directoryDescriptor.inUse = false
-		fs.directoryEntry.inUse = false
+	// 	directoryDescriptor.inUse = false
+	// 	fs.directoryEntry.inUse = false
 
-		return EEFS_SUCCESS
-	}
+	// 	return EEFS_SUCCESS
+	// }
 
 	/**
 	 * @param {EEFSFileSystem} fs
 	 */
 	static hasOpenFiles(fs) {
-		for(const fileDescriptor of range(0, EEFS_MAX_OPEN_FILES)) {
+		for(const fileDescriptor of range(0, EEFS_MAX_OPEN_FILES - 1)) {
 			if((fs.fileDescriptorTable[fileDescriptor]?.inUse === true) &&
 				(fs.fileDescriptorTable[fileDescriptor].inodeTable === fs.inodeTable)) {
 					return true
@@ -508,19 +507,19 @@ export class EEFS {
 	/**
 	 * @param {EEFSFileSystem} fs
 	 */
-	static hasOpenDir(fs) {
-		if((fs.directoryDescriptor.inUse === true) && (fs.directoryDescriptor.inodeTable === fs.inodeTable)) {
-			return true
-		}
+	// static hasOpenDir(fs) {
+	// 	if((fs.directoryDescriptor.inUse === true) && (fs.directoryDescriptor.inodeTable === fs.inodeTable)) {
+	// 		return true
+	// 	}
 
-		return false
-	}
+	// 	return false
+	// }
 
 	/**
 	 * @param {EEFSFileSystem} fs
 	 */
 	static #hasOpenCreate(fs) {
-		for(const fileDescriptor of range(0, EEFS_MAX_OPEN_FILES)) {
+		for(const fileDescriptor of range(0, EEFS_MAX_OPEN_FILES - 1)) {
 			if((fs.fileDescriptorTable[fileDescriptor]?.inUse === true) &&
 				(fs.fileDescriptorTable[fileDescriptor].inodeTable === fs.inodeTable) &&
 				((fs.fileDescriptorTable[fileDescriptor].mode & EEFS_FCREAT) !== 0)) {
@@ -537,7 +536,7 @@ export class EEFS {
 	 * @returns {FileDescriptorMode}
 	 */
 	static #fMode(fs, inodeIndex) {
-		return range(0, EEFS_MAX_OPEN_FILES)
+		return range(0, EEFS_MAX_OPEN_FILES - 1)
 			.reduce((mode, fileDescriptor) => {
 				if((fs.fileDescriptorTable[fileDescriptor]?.inUse === true) &&
 					(fs.fileDescriptorTable[fileDescriptor].inodeTable === fs.inodeTable) &&
@@ -572,7 +571,7 @@ export class EEFS {
 	 * @returns {StatusCode|FileDescriptorIndex}
 	 */
 	static #getFileDescriptor(fs) {
-		for(const fileDescriptor of range(0, EEFS_MAX_OPEN_FILES)) {
+		for(const fileDescriptor of range(0, EEFS_MAX_OPEN_FILES - 1)) {
 			if((fs.fileDescriptorTable[fileDescriptor] === undefined) || (fs.fileDescriptorTable[fileDescriptor].inUse === false)) {
 				fs.fileDescriptorTable[fileDescriptor] = {
 					inUse: true,
@@ -674,7 +673,7 @@ export class EEFS {
 	 * @returns {AsyncGenerator<string>}
 	 */
 	static async *listOpenFiles(fs) {
-		for(const fileDescriptor of range(0, EEFS_MAX_OPEN_FILES)) {
+		for(const fileDescriptor of range(0, EEFS_MAX_OPEN_FILES - 1)) {
 			if(fs.fileDescriptorTable[fileDescriptor]?.inUse ?? false) {
 				const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, fs.fileDescriptorTable[fileDescriptor].fileHeaderPointer)
 				yield fileHeader.filename

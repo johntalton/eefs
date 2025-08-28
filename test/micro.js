@@ -20,9 +20,20 @@ describe('MicroEEFS', () => {
 
 	describe('findFile (uninitialized)', () => {
 		it('should throw error on bad MAGIC', async () => {
-			assert.rejects(async () => {
+			const backingU32 = new Uint32Array(context.backingBuffer)
+			backingU32[1] = 0xDEAD
+			await assert.rejects(async () => {
 				await MicroEEFS.findFile(context.fs.eeprom, context.baseAddress, 'not_found', context.fs.decoder)
-			})
+			}, new Error('Invalid Magic'))
+		})
+
+		it('should throw error on bad version', async () => {
+			const backingU32 = new Uint32Array(context.backingBuffer)
+			backingU32[1] = 0x34_12_F5_EE // 0xEEF51234
+			backingU32[2] = 0xDEAD
+			await assert.rejects(async () => {
+				await MicroEEFS.findFile(context.fs.eeprom, context.baseAddress, 'not_found', context.fs.decoder)
+			}, new Error('Invalid Version'))
 		})
 	})
 

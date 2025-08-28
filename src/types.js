@@ -29,12 +29,13 @@ export const INUSE = {
  * @property {FileDescriptorTable} fileDescriptorTable
  * @property {number} fileDescriptorsInUse
  * @property {number} fileDescriptorsHighWaterMark
- * @property {DirectoryDescriptor} directoryDescriptor
- * @property {DirectoryEntry} directoryEntry
  * @property {Intl.Collator} collator
  * @property {TextEncoder} encoder
  * @property {TextDecoder} decoder
+ *
+ * removed directoryDescriptor and directoryEntry
  */
+
 
 
 /**
@@ -129,14 +130,14 @@ export const INUSE = {
  */
 
 /**
- * @typedef {Object} DirectoryDescriptor
+ * @typedef {Object} _DirectoryDescriptor
  * @property {boolean} inUse
  * @property {InodeIndex} inodeIndex
  * @property {InodeTable} inodeTable
  */
 
 /**
- * @typedef {Object} DirectoryEntry
+ * @typedef {Object} _DirectoryEntry
  * @property {InodeIndex} inodeIndex
  * @property {string} filename
  * @property {boolean} inUse

@@ -2,6 +2,9 @@
   "name": "@johntalton/eefs",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "exports": {
     ".": "./src/index.js",
     "./micro": "./src/micro.js",

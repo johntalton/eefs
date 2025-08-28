@@ -28,6 +28,8 @@ import {
 } from './defs.js'
 
 import {
+	FILE_ALLOCATION_TABLE_ENTRY_SIZE,
+	FILE_ALLOCATION_TABLE_HEADER_SIZE,
 	FILE_HEADER_SIZE
 } from './types.js'
 
@@ -61,8 +63,8 @@ export class EEFS {
 		if(header.version !== 1) { return EEFS_NO_SUCH_DEVICE }
 		if(header.numberOfFiles > EEFS_MAX_FILES) { return EEFS_NO_SUCH_DEVICE }
 
-		const files = await Promise.all([ ...range(0, header.numberOfFiles - 1)].map(async i => {
-			const fatEntry = await Common.readFATEntry(fs.eeprom, fs.inodeTable, i)
+		const files = await Promise.all([ ...range(0, header.numberOfFiles - 1)].map(async inodeIndex => {
+			const fatEntry = await Common.readFATEntry(fs.eeprom, fs.inodeTable.baseAddress + FILE_ALLOCATION_TABLE_HEADER_SIZE + (inodeIndex * FILE_ALLOCATION_TABLE_ENTRY_SIZE))
 			return {
 				fileHeaderPointer: baseAddress + fatEntry.fileHeaderOffset,
 				maxFileSize: fatEntry.maxFileSize
@@ -262,7 +264,7 @@ export class EEFS {
 				maxFileSize: inodeTable.files[inodeIndex].maxFileSize
 			}
 
-			await Common.writeFATEntry(fs.eeprom, inodeTable, inodeIndex, fileAllocationTableEntry)
+			await Common.writeFATEntry(fs.eeprom, inodeTable.baseAddress + FILE_ALLOCATION_TABLE_HEADER_SIZE + (inodeIndex * FILE_ALLOCATION_TABLE_ENTRY_SIZE), fileAllocationTableEntry)
 
 			const header = await Common.readHeader(fs.eeprom, inodeTable.baseAddress)
 			header.freeMemoryOffset = inodeTable.freeMemoryPointer - inodeTable.baseAddress

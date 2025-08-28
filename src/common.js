@@ -17,8 +17,6 @@ import { stripZeroU8 } from './utils.js'
  * @import {
  *  EEPROM,
  *  Header,
- *  InodeTable,
- *  InodeIndex,
  *  FileAllocationTableEntry,
  *  FileHeader
  * } from './types.js'
@@ -46,6 +44,7 @@ export async function format(eeprom, baseAddress, byteSize, version = 1) {
 
 export class Common {
 	/**
+	 * @param {EEPROM} eeprom
 	 * @param {number} baseAddress
 	 * @returns {Promise<Header>}
 	 */
@@ -95,12 +94,10 @@ export class Common {
 
 	/**
 	 * @param {EEPROM} eeprom
-	 * @param {InodeTable} inodeTable
-	 * @param {InodeIndex} inodeIndex
+	 * @param {number} offset
 	 * @returns {Promise<FileAllocationTableEntry>}
 	 */
-	static async readFATEntry(eeprom, inodeTable, inodeIndex) {
-		const offset = inodeTable.baseAddress + FILE_ALLOCATION_TABLE_HEADER_SIZE + (inodeIndex * FILE_ALLOCATION_TABLE_ENTRY_SIZE)
+	static async readFATEntry(eeprom, offset) {
 		const ab = await eeprom.read(offset, FILE_ALLOCATION_TABLE_ENTRY_SIZE)
 		const dv = ArrayBuffer.isView(ab) ?
 			new DataView(ab.buffer, ab.byteOffset, ab.byteLength) :
@@ -118,13 +115,11 @@ export class Common {
 
 	/**
 	 * @param {EEPROM} eeprom
-	 * @param {InodeTable} inodeTable
-	 * @param {InodeIndex} inodeIndex
+	 * @param {number} offset
 	 * @param {FileAllocationTableEntry} fatEntry
 	 * @returns {Promise}
 	 */
-	static async writeFATEntry(eeprom, inodeTable, inodeIndex, fatEntry) {
-		const offset = inodeTable.baseAddress + FILE_ALLOCATION_TABLE_HEADER_SIZE + (inodeIndex * FILE_ALLOCATION_TABLE_ENTRY_SIZE)
+	static async writeFATEntry(eeprom, offset, fatEntry) {
 		const ab = new ArrayBuffer(FILE_ALLOCATION_TABLE_ENTRY_SIZE)
 		const dv = new DataView(ab)
 
@@ -194,7 +189,6 @@ export class Common {
 
 		return eeprom.write(offset, fileHeaderBuffer)
 	}
-
 
 	/**
 	 * @param {EEPROM} eeprom

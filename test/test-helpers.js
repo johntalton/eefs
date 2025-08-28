@@ -51,7 +51,7 @@ export const DEFAULT_HELPERS = {
 }
 
 export async function addFile(fs, name, textContent, attributes = EEFS_ATTRIBUTE_NONE) {
-	console.log('addFile', fs.inodeTable.numberOfFiles, fs.inodeTable.freeMemorySize)
+	// console.log('addFile', fs.inodeTable.numberOfFiles, fs.inodeTable.freeMemorySize)
 	const encoder = new TextEncoder()
 	const content = encoder.encode(textContent)
 	const fd = await EEFS.create(fs, name, attributes)
@@ -66,7 +66,7 @@ export async function addFile(fs, name, textContent, attributes = EEFS_ATTRIBUTE
 export async function commonBeforeEach(doFormat = false, doInit = false, addFiles = false, fill = false) {
 	const context = {}
 
-	console.log('FAT Size', FILE_ALLOCATION_TABLE_SIZE)
+	// console.log('FAT Size', FILE_ALLOCATION_TABLE_SIZE)
 
 	const size = 32 * 1024 / 8
 	context.backingBuffer = new ArrayBuffer(size)
@@ -77,18 +77,18 @@ export async function commonBeforeEach(doFormat = false, doInit = false, addFile
 		...DEFAULT_HELPERS
 	}
 
-	const baseAddress = DEFAULT_BASE_ADDRESS
+	context.baseAddress = DEFAULT_BASE_ADDRESS
 
 	if(doFormat) {
-		format(context.fs.eeprom, baseAddress, size)
+		format(context.fs.eeprom, context.baseAddress, size)
 
 		if(doInit) {
-			await EEFS.initFS(context.fs, baseAddress)
+			await EEFS.initFS(context.fs, context.baseAddress)
 
 			if(addFiles) {
 				await addFile(context.fs, 'README.md', `
-					# EEFS
-					A simple File System
+					# 🚀 NASA EEFS
+					A Simple File System
 					`)
 
 				await addFile(context.fs, 'empty', undefined)
@@ -101,9 +101,9 @@ export async function commonBeforeEach(doFormat = false, doInit = false, addFile
 					for(const id of range(0, count - 1)) {
 						await addFile(context.fs, `spam-${id}`, `Content for ${id}`)
 
-						console.log('addFile free pointer', context.fs.inodeTable.freeMemoryPointer)
-						console.log('addFile free memory', context.fs.inodeTable.freeMemorySize)
-						console.log('addFile number of files', context.fs.inodeTable.numberOfFiles)
+						// console.log('addFile free pointer', context.fs.inodeTable.freeMemoryPointer)
+						// console.log('addFile free memory', context.fs.inodeTable.freeMemorySize)
+						// console.log('addFile number of files', context.fs.inodeTable.numberOfFiles)
 					}
 
 

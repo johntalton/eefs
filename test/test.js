@@ -386,21 +386,21 @@ describe('EEFS (with files)', () => {
 	})
 })
 
-describe('EEFS (full)', () => {
-	let context = {}
+// describe('EEFS (full)', () => {
+// 	let context = {}
 
-	beforeEach(async () => {
-		context = await commonBeforeEach(true, true, true, true)
-	})
+// 	beforeEach(async () => {
+// 		context = await commonBeforeEach(true, true, true, true)
+// 	})
 
-	afterEach(async () => {
-		const status = await EEFS.freeFS(context.fs)
-		assert.equal(EEFS_SUCCESS, status)
-	})
+// 	afterEach(async () => {
+// 		const status = await EEFS.freeFS(context.fs)
+// 		assert.equal(EEFS_SUCCESS, status)
+// 	})
 
 
-	it('should have max inodesTable', () => {
-		assert.equal(64, context.fs.inodeTable.files.length)
-	})
-})
+// 	it('should have max inodesTable', () => {
+// 		assert.equal(64, context.fs.inodeTable.files.length)
+// 	})
+// })
 

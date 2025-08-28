@@ -50,7 +50,7 @@ export class Common {
 	 */
 	static async readHeader(eeprom, baseAddress) {
 		const ab = await eeprom.read(baseAddress, FILE_ALLOCATION_TABLE_HEADER_SIZE)
-		if(ab.byteLength < FILE_ALLOCATION_TABLE_HEADER_SIZE) { throw new Error('under size header') }
+		if(ab.byteLength < FILE_ALLOCATION_TABLE_HEADER_SIZE) { throw new RangeError('read size not adequate for fat header') }
 
 		const dv = ArrayBuffer.isView(ab) ?
 			new DataView(ab.buffer, ab.byteOffset, ab.byteLength) :
@@ -99,6 +99,8 @@ export class Common {
 	 */
 	static async readFATEntry(eeprom, offset) {
 		const ab = await eeprom.read(offset, FILE_ALLOCATION_TABLE_ENTRY_SIZE)
+		if(ab.byteLength < FILE_ALLOCATION_TABLE_ENTRY_SIZE) { throw new RangeError('read size not adequate for fat entry') }
+
 		const dv = ArrayBuffer.isView(ab) ?
 			new DataView(ab.buffer, ab.byteOffset, ab.byteLength) :
 			new DataView(ab, 0, ab.byteLength)
@@ -138,6 +140,8 @@ export class Common {
 	 */
 	static async readFileHeader(eeprom, decoder, offset) {
 		const ab = await eeprom.read(offset, FILE_HEADER_SIZE)
+		if(ab.byteLength < FILE_HEADER_SIZE) { throw new RangeError('read size not adequate for file header') }
+
 		const dv = ArrayBuffer.isView(ab) ?
 			new DataView(ab.buffer, ab.byteOffset, ab.byteLength) :
 			new DataView(ab, 0, ab.byteLength)

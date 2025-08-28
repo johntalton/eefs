@@ -11,6 +11,10 @@
   "files": [
     "./src/**/*.js"
   ],
+  "scripts": {
+    "test": "node --test",
+    "coverage": "c8 -r lcov -r text node --test"
+  },
   "devDependencies": {
     "c8": "^10.1.3"
   }

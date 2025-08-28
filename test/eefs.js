@@ -45,7 +45,7 @@ describe('EEFS (unformatted)', () => {
 
 	it('should fail unformatted inits', async () => {
 		const status = await EEFS.initFS(context.fs, DEFAULT_BASE_ADDRESS)
-		assert.equal(EEFS_NO_SUCH_DEVICE, status)
+		assert.equal(status, EEFS_NO_SUCH_DEVICE)
 	})
 })
 
@@ -61,7 +61,7 @@ describe('EEFS (formatted)', () => {
 		backingU32[2] = 42 // version is at offset 2
 
 		const status = await EEFS.initFS(context.fs, DEFAULT_BASE_ADDRESS)
-		assert.equal(EEFS_NO_SUCH_DEVICE, status)
+		assert.equal(status, EEFS_NO_SUCH_DEVICE)
 	})
 
 	it('should not init if max files', async () => {
@@ -69,13 +69,13 @@ describe('EEFS (formatted)', () => {
 		backingU32[5] = 0xFFFF // numberOfFiles is at offset 5
 
 		const status = await EEFS.initFS(context.fs, DEFAULT_BASE_ADDRESS)
-		assert.equal(EEFS_NO_SUCH_DEVICE, status)
+		assert.equal(status, EEFS_NO_SUCH_DEVICE)
 	})
 
 	it('should init', async () => {
 		const status = await EEFS.initFS(context.fs, DEFAULT_BASE_ADDRESS)
-		assert.equal(EEFS_SUCCESS, status)
-		assert.equal(DEFAULT_BASE_ADDRESS, context.fs.inodeTable.baseAddress)
+		assert.equal(status, EEFS_SUCCESS)
+		assert.equal(context.fs.inodeTable.baseAddress, DEFAULT_BASE_ADDRESS)
 	})
 })
 
@@ -88,7 +88,7 @@ describe('EEFS (initialized)', () => {
 
 	it('should de-inits', async () => {
 		const status = await EEFS.freeFS(context.fs)
-		assert.equal(EEFS_SUCCESS, status)
+		assert.equal(status, EEFS_SUCCESS)
 	})
 
 	it('should not de-init if open files', async () => {
@@ -98,7 +98,7 @@ describe('EEFS (initialized)', () => {
 		}
 
 		const status = await EEFS.freeFS(context.fs)
-		assert.equal(EEFS_DEVICE_IS_BUSY, status)
+		assert.equal(status, EEFS_DEVICE_IS_BUSY)
 	})
 
 })
@@ -112,27 +112,27 @@ describe('EEFS (empty)', () => {
 
 	afterEach(async () => {
 		const status = await EEFS.freeFS(context.fs)
-		assert.equal(EEFS_SUCCESS, status)
+		assert.equal(status, EEFS_SUCCESS)
 	})
 
 	it('should disallow undefined filename', async () => {
 		const fd = await EEFS.open(context.fs, undefined, O_CREAT)
-		assert.equal(EEFS_INVALID_ARGUMENT, fd)
+		assert.equal(fd, EEFS_INVALID_ARGUMENT)
 	})
 
 	it('should disallow non string filename', async () => {
 		const fd = await EEFS.open(context.fs, true, O_CREAT)
-		assert.equal(EEFS_INVALID_ARGUMENT, fd)
+		assert.equal(fd, EEFS_INVALID_ARGUMENT)
 	})
 
 	it('should disallow empty filename', async () => {
 		const fd = await EEFS.open(context.fs, '', O_CREAT)
-		assert.equal(EEFS_INVALID_ARGUMENT, fd)
+		assert.equal(fd, EEFS_INVALID_ARGUMENT)
 	})
 
 	it('should not open nonexistent files', async () => {
 		const fd = await EEFS.open(context.fs, '404', O_RDONLY)
-		assert.equal(EEFS_FILE_NOT_FOUND, fd)
+		assert.equal(fd, EEFS_FILE_NOT_FOUND)
 	})
 
 	it('should create open with flag', async () => {
@@ -154,19 +154,19 @@ describe('EEFS (empty)', () => {
 		assert.ok(fd >= 0)
 
 		const status = await EEFS.create(context.fs, 'test2.tmp')
-		assert.equal(EEFS_PERMISSION_DENIED, status)
+		assert.equal(status, EEFS_PERMISSION_DENIED)
 
 		await EEFS.close(context.fs, fd)
 	})
 
 	it('should prevent unknown attributes ', async () => {
 		const fd = await EEFS.create(context.fs, 'test.tmp', 42)
-		assert.equal(EEFS_INVALID_ARGUMENT, fd)
+		assert.equal(fd, EEFS_INVALID_ARGUMENT)
 	})
 
 	it('should error on closing invalid fd', async () => {
 		const status = await EEFS.close(context.fd, 42)
-		assert.equal(EEFS_INVALID_ARGUMENT, status)
+		assert.equal(status, EEFS_INVALID_ARGUMENT)
 	})
 
 	it('should return true when has files open', async () => {
@@ -186,51 +186,78 @@ describe('EEFS (with files)', () => {
 
 	afterEach(async () => {
 		const status = await EEFS.freeFS(context.fs)
-		assert.equal(EEFS_SUCCESS, status)
+		assert.equal(status, EEFS_SUCCESS)
 	})
 
 	it('should have files', async () => {
-		assert.equal(3, context.fs.inodeTable.numberOfFiles)
+		assert.equal(context.fs.inodeTable.numberOfFiles, 3)
 	})
 
 	it('should list files', async () => {
 		const list = EEFS.listInodes(context.fs)
 		const first = await list.next()
 		assert.ok(!first.done)
-		assert.notEqual(undefined, first.value)
-		assert.equal('README.md', first.value.filename)
+		assert.notEqual(first.value, undefined)
+		assert.equal(first.value.filename, 'README.md')
 
 		const second = await list.next()
 		assert.ok(!second.done)
-		assert.notEqual(undefined, second.value)
-		assert.equal('empty', second.value.filename)
+		assert.notEqual(second.value, undefined)
+		assert.equal(second.value.filename, 'empty')
 
 		const third = await list.next()
 		assert.ok(!third.done)
-		assert.notEqual(undefined, third.value)
-		assert.equal('🔒.json', third.value.filename)
+		assert.notEqual(third.value, undefined)
+		assert.equal(third.value.filename, '🔒.json')
 
 		const last = await list.next()
 		assert.ok(last.done)
-		assert.equal(undefined, last.value)
+		assert.equal(last.value, undefined)
 	})
 })
 
-// describe('EEFS (full)', () => {
-// 	let context = {}
+describe('EEFS (full)', () => {
+	let context = {}
 
-// 	beforeEach(async () => {
-// 		context = await commonBeforeEach(true, true, true, true)
-// 	})
+	beforeEach(async () => {
+		context = await commonBeforeEach(true, true, true, true)
+	})
 
-// 	afterEach(async () => {
-// 		const status = await EEFS.freeFS(context.fs)
-// 		assert.equal(EEFS_SUCCESS, status)
-// 	})
+	afterEach(async () => {
+		const status = await EEFS.freeFS(context.fs)
+		assert.equal(status, EEFS_SUCCESS)
+	})
 
+	it('should have represent a full device', () => {
+		assert.equal(context.fs.inodeTable.files.length, 6)
+		assert.equal(context.fs.inodeTable.numberOfFiles, 6)
+		assert.equal(context.fs.inodeTable.freeMemorySize, 0)
+	})
 
-// 	it('should have max inodesTable', () => {
-// 		assert.equal(64, context.fs.inodeTable.files.length)
-// 	})
-// })
+	it('should have spam-0 with stats', async () => {
+		const stat = {}
+		const status = await EEFS.stat(context.fs, 'spam-0', stat)
+		assert.equal(status, EEFS_SUCCESS)
+
+		assert.equal(stat.filename, 'spam-0')
+		assert.equal(stat.fileSize, 61)
+		assert.equal(stat.inodeIndex, 3)
+	})
+
+	it('should have spam-2 with stats', async () => {
+		const stat = {}
+		const status = await EEFS.stat(context.fs, 'spam-2', stat)
+		assert.equal(status, EEFS_SUCCESS)
+
+		assert.equal(stat.filename, 'spam-2')
+		assert.equal(stat.fileSize, 61)
+		assert.equal(stat.inodeIndex, 5)
+	})
+
+	it('should not have spam-3', async () => {
+		const stat = {}
+		const status = await EEFS.stat(context.fs, 'spam-3', stat)
+		assert.equal(status, EEFS_FILE_NOT_FOUND)
+	})
+})
 

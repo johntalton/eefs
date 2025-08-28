@@ -43,12 +43,12 @@ describe('Common', () => {
 			const baseAddress = 0
 			const header = await Common.readHeader(eeprom, baseAddress)
 			assert.ok(header !== undefined)
-			assert.equal(0, header.CRC)
-			assert.equal(0, header.magic)
-			assert.equal(0, header.version)
-			assert.equal(0, header.freeMemoryOffset)
-			assert.equal(0, header.freeMemorySize)
-			assert.equal(0, header.numberOfFiles)
+			assert.equal(header.CRC, 0)
+			assert.equal(header.magic, 0)
+			assert.equal(header.version, 0)
+			assert.equal(header.freeMemoryOffset, 0)
+			assert.equal(header.freeMemorySize, 0)
+			assert.equal(header.numberOfFiles, 0)
 		})
 
 		it('should read values from ArrayBuffer', async () => {
@@ -71,12 +71,12 @@ describe('Common', () => {
 			const baseAddress = 0
 			const header = await Common.readHeader(eeprom, baseAddress)
 			assert.ok(header !== undefined)
-			assert.equal(1, header.CRC)
-			assert.equal(2, header.magic)
-			assert.equal(3, header.version)
-			assert.equal(4, header.freeMemoryOffset)
-			assert.equal(5, header.freeMemorySize)
-			assert.equal(6, header.numberOfFiles)
+			assert.equal(header.CRC, 1)
+			assert.equal(header.magic, 2)
+			assert.equal(header.version, 3)
+			assert.equal(header.freeMemoryOffset, 4)
+			assert.equal(header.freeMemorySize, 5)
+			assert.equal(header.numberOfFiles, 6)
 		})
 	})
 
@@ -113,8 +113,8 @@ describe('Common', () => {
 
 			const offset = 0
 			const fatEntry = await Common.readFATEntry(eeprom, offset)
-			assert.equal(0, fatEntry.fileHeaderOffset)
-			assert.equal(0, fatEntry.maxFileSize)
+			assert.equal(fatEntry.fileHeaderOffset, 0)
+			assert.equal(fatEntry.maxFileSize, 0)
 		})
 	})
 
@@ -143,13 +143,13 @@ describe('Common', () => {
 			const decoder = new TextDecoder('utf-8')
 			const offset = 0
 			const fileHeader = await Common.readFileHeader(eeprom, decoder, offset)
-			assert.equal(0, fileHeader.CRC)
-			assert.equal(false, fileHeader.inUse)
-			assert.equal(0, fileHeader.attributes)
-			assert.equal(0, fileHeader.fileSize)
-			assert.equal(0, fileHeader.modificationDate)
-			assert.equal(0, fileHeader.creationDate)
-			assert.equal('', fileHeader.filename)
+			assert.equal(fileHeader.CRC, 0)
+			assert.equal(fileHeader.inUse, false)
+			assert.equal(fileHeader.attributes, 0)
+			assert.equal(fileHeader.fileSize, 0)
+			assert.equal(fileHeader.modificationDate, 0)
+			assert.equal(fileHeader.creationDate, 0)
+			assert.equal(fileHeader.filename, '')
 		})
 	})
 

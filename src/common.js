@@ -1,5 +1,6 @@
 import {
 	EEFS_FILESYSTEM_MAGIC,
+	EEFS_FILESYSTEM_VERSION,
 	EEFS_MAX_FILENAME_SIZE
 } from './defs.js'
 
@@ -27,9 +28,9 @@ import { stripZeroU8 } from './utils.js'
  * @param {EEPROM} eeprom
  * @param {number} baseAddress
  * @param {number} byteSize
- * @param {number} [version=1]
+ * @param {number} [version = EEFS_FILESYSTEM_VERSION]
  */
-export async function format(eeprom, baseAddress, byteSize, version = 1) {
+export async function format(eeprom, baseAddress, byteSize, version = EEFS_FILESYSTEM_VERSION) {
 	if(byteSize < FILE_ALLOCATION_TABLE_HEADER_SIZE) { throw new Error('size not adequate for fat header') }
 
   return Common.writeHeader(eeprom, baseAddress, {

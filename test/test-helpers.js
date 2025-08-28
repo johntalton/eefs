@@ -1,29 +1,14 @@
 import {
 	format,
 	EEFS,
-	EEFS_NO_SUCH_DEVICE,
 	EEFS_SUCCESS,
-	O_ACCMODE,
-	EEFS_FREAD,
-	O_RDONLY,
-	O_WRONLY,
-	EEFS_FWRITE,
-	O_RDWR,
-	EEFS_FCREAT,
-	O_CREAT,
-	O_TRUNC,
-	EEFS_MAX_FILES,
-	EEFS_DEVICE_IS_BUSY,
 	EEFS_ATTRIBUTE_NONE,
 	EEFS_ATTRIBUTE_READONLY,
-	EEFS_INVALID_ARGUMENT,
-	EEFS_PERMISSION_DENIED,
-	EEFS_FILE_NOT_FOUND,
-	FILE_ALLOCATION_TABLE_SIZE
+	EEFS_MAX_FILES,
 } from '@johntalton/eefs'
 import { EEPROMArrayBuffer } from '@johntalton/eefs/eeprom-array-buffer'
 
-import { modeFromFlags, range, roundUp, stripZeroU8 } from '../src/utils.js'
+import { range } from '../src/utils.js'
 
 
 export const DEFAULT_BASE_ADDRESS = 0
@@ -96,10 +81,18 @@ export async function commonBeforeEach(doFormat = false, doInit = false, addFile
 				await addFile(context.fs, '🔒.json', JSON.stringify({ readonly: true }), EEFS_ATTRIBUTE_READONLY)
 
 				if(fill) {
-					const count = 5 // EEFS_MAX_FILES - 3
+					const count = EEFS_MAX_FILES
 
 					for(const id of range(0, count - 1)) {
-						await addFile(context.fs, `spam-${id}`, `Content for ${id}`)
+						try {
+							console.log('fill file count', id)
+							await addFile(context.fs, `spam-${id}`, `Content for ${id}! of some arbitrary size, less then spare bytes `)
+						}
+						catch(e) {
+							// full
+							console.log('fill file full', e, context.fs.inodeTable.freeMemorySize, context.fs.inodeTable.numberOfFiles)
+							break
+						}
 
 						// console.log('addFile free pointer', context.fs.inodeTable.freeMemoryPointer)
 						// console.log('addFile free memory', context.fs.inodeTable.freeMemorySize)

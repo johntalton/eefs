@@ -39,21 +39,21 @@ describe('MicroEEFS', () => {
 
 		it('should not find unknown files', async () => {
 			const result = await MicroEEFS.findFile(context.fs.eeprom, context.baseAddress, 'not_found', context.fs.decoder)
-			assert.equal(undefined, result)
+			assert.equal(result, undefined)
 		})
 
 		it('should find file', async () => {
 			const result = await MicroEEFS.findFile(context.fs.eeprom, context.baseAddress, 'README.md', context.fs.decoder)
 			assert.ok(result instanceof File)
-			assert.equal('README.md', result.name)
-			assert.equal(54, result.size)
+			assert.equal(result.name, 'README.md')
+			assert.equal(result.size, 54)
 		})
 
 		it('should find readonly file', async () => {
 			const result = await MicroEEFS.findFile(context.fs.eeprom, context.baseAddress, '🔒.json', context.fs.decoder)
 			assert.ok(result instanceof File)
-			assert.equal('🔒.json', result.name)
-			assert.equal(17, result.size)
+			assert.equal(result.name, '🔒.json')
+			assert.equal(result.size, 17)
 		})
 	})
 })

@@ -1,5 +1,5 @@
 import { Common } from './common.js'
-import { EEFS_FILESYSTEM_MAGIC } from './defs.js'
+import { EEFS_FILESYSTEM_MAGIC, EEFS_FILESYSTEM_VERSION } from './defs.js'
 import { FILE_ALLOCATION_TABLE_ENTRY_SIZE, FILE_ALLOCATION_TABLE_HEADER_SIZE, FILE_HEADER_SIZE } from './types.js'
 import { range } from './utils.js'
 
@@ -20,7 +20,7 @@ export class MicroEEFS {
 	static async findFile(eeprom, baseAddress, filename, decoder) {
 		const header = await Common.readHeader(eeprom, baseAddress)
 		if(header.magic !== EEFS_FILESYSTEM_MAGIC) { throw new Error('EEFS_NO_SUCH_DEVICE') }
-		if(header.version !== 1) { throw new Error('EEFS_NO_SUCH_DEVICE') }
+		if(header.version !== EEFS_FILESYSTEM_VERSION) { throw new Error('EEFS_NO_SUCH_DEVICE') }
 
 		for(const inodeIndex of range(0, header.numberOfFiles - 1)) {
 			const fatEntryOffset = baseAddress + FILE_ALLOCATION_TABLE_HEADER_SIZE + (inodeIndex * FILE_ALLOCATION_TABLE_ENTRY_SIZE)

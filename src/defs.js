@@ -6,9 +6,10 @@ export const EEFS_MAX_FILES = 64
 export const EEFS_MAX_OPEN_FILES = 20
 export const EEFS_DEFAULT_CREATE_SPARE_BYTES = 512
 export const EEFS_MAX_FILENAME_SIZE = 40
+
 //
 export const EEFS_FILESYSTEM_MAGIC = 0xEEF51234
-
+export const EEFS_FILESYSTEM_VERSION = 1
 
 // FileAttributes
 export const EEFS_ATTRIBUTE_NONE = 0
@@ -36,13 +37,6 @@ export const EEFS_NO_SPACE_LEFT_ON_DEVICE = (-7)
 export const EEFS_NO_SUCH_DEVICE = (-8)
 export const EEFS_DEVICE_IS_BUSY = (-9)
 export const EEFS_READ_ONLY_FILE_SYSTEM = (-10)
-
-// eefs_version.h
-export const EEFS_MAJOR_VERSION = (2)
-export const EEFS_MINOR_VERSION = (0)
-export const EEFS_REVISION      = (0)
-export const EEFS_MISSION_REV   = (0)
-
 
 //
 export const O_CREAT   = 0x0002

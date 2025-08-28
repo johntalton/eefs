@@ -7,6 +7,7 @@ import {
 	EEFS_FCREAT,
 	EEFS_FILE_NOT_FOUND,
 	EEFS_FILESYSTEM_MAGIC,
+	EEFS_FILESYSTEM_VERSION,
 	EEFS_FREAD,
 	EEFS_FWRITE, EEFS_INVALID_ARGUMENT,
 	EEFS_LIB_IS_WRITE_PROTECTED,
@@ -60,7 +61,7 @@ export class EEFS {
 		const header = await Common.readHeader(fs.eeprom, baseAddress)
 
 		if(header.magic !== EEFS_FILESYSTEM_MAGIC) { return EEFS_NO_SUCH_DEVICE }
-		if(header.version !== 1) { return EEFS_NO_SUCH_DEVICE }
+		if(header.version !== EEFS_FILESYSTEM_VERSION) { return EEFS_NO_SUCH_DEVICE }
 		if(header.numberOfFiles > EEFS_MAX_FILES) { return EEFS_NO_SUCH_DEVICE }
 
 		const files = await Promise.all([ ...range(0, header.numberOfFiles - 1)].map(async inodeIndex => {
@@ -381,6 +382,7 @@ export class EEFS {
 	static async stat(fs, filename, stat) {
 		if(!EEFS.#isValidFileName(fs, filename)) { return EEFS_INVALID_ARGUMENT }
 		const inodeIndex = await EEFS.#findFile(fs, filename)
+		if(inodeIndex === EEFS_FILE_NOT_FOUND) { return EEFS_FILE_NOT_FOUND }
 
 		const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, fs.inodeTable.files[inodeIndex].fileHeaderPointer)
 		stat.inodeIndex = inodeIndex

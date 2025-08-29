@@ -225,6 +225,7 @@ export class Common {
 	 */
 	static async writeData(eeprom, offset, length, buffer) {
 		// todo respect length
+		if(buffer.byteLength !== length) { throw new Error('length miss-match') }
 		return eeprom.write(offset, buffer)
 	}
 }

@@ -64,8 +64,6 @@ export class EEFSStorageManager {
 			fileDescriptorTable: [],
 			fileDescriptorsInUse: 0,
 			fileDescriptorsHighWaterMark: 0,
-			directoryDescriptor: {},
-			directoryEntry: {},
 
 			collator,
 			encoder,
@@ -127,7 +125,7 @@ export class EEFSFileSystemDirectoryHandle extends EEFSFileHandle {
 	async *entries() {
 		for await (const inodeEntry of EEFS.listInodes(this.filesystem)) {
 			const { filename, inodeIndex } = inodeEntry
-			const handle = new EEFSFileSystemFileHandle(this.filesystem, filename, inodeIndex)
+			const handle = new EEFSFileSystemFileHandle(this.filesystem, filename)
 			yield [ filename, handle ]
 		}
 	}
@@ -150,20 +148,20 @@ export class EEFSFileSystemDirectoryHandle extends EEFSFileHandle {
 	 */
 	async getFileHandle(name, options = {}) {
 		const create = options?.create ?? false
-		const flags = create ? O_CREAT | O_RDWR : O_RDWR
+		const flags = create ? O_CREAT | O_RDONLY : O_RDONLY
 		const attributes = EEFS_ATTRIBUTE_NONE
 
 		const fd = await EEFS.open(this.filesystem, name, flags, attributes)
 		if(fd < 0) { throw new DOMException(`open error ${fd}`, 'NotFoundError') }
 
-		const stat = {}
-		const statStatus = await EEFS.fstat(this.filesystem, fd, stat)
-		if(statStatus !== EEFS_SUCCESS) { throw new DOMException(`stat for fd ${statStatus}`, 'InvalidStateError') }
+		// const stat = {}
+		// const statStatus = await EEFS.fstat(this.filesystem, fd, stat)
+		// if(statStatus !== EEFS_SUCCESS) { throw new DOMException(`stat for fd ${statStatus}`, 'InvalidStateError') }
 
 		const closeStatus = await EEFS.close(this.filesystem, fd)
 		if(closeStatus !== EEFS_SUCCESS) { throw new DOMException('', 'InvalidStateError') }
 
-		return new EEFSFileSystemFileHandle(this.filesystem, name, stat.inodeIndex)
+		return new EEFSFileSystemFileHandle(this.filesystem, name)
 	}
 
 	/**
@@ -191,10 +189,9 @@ export class EEFSFileSystemDirectoryHandle extends EEFSFileHandle {
 }
 
 export class EEFSFileSystemFileHandle extends EEFSFileHandle {
-	#inodeIndex
 	kind = 'file'
 
-	constructor(fs, filename, inodeIndex) {
+	constructor(fs, filename) {
 		super(fs, filename)
 	}
 
@@ -256,6 +253,7 @@ export class EEFSFileSystemWritableStreamUnderlyingSink {
 		if(chunk instanceof Blob) { throw new Error('not yet (Blob)') }
 		else if(chunk instanceof ArrayBuffer) { throw new Error('not yet (ArrayBuffer)') }
 		else if(ArrayBuffer.isView(chunk)) {
+			// console.log('Underlying Sink Write Chunk,', chunk.byteLength, chunk)
 			const status = await EEFS.write(this.#fs, this.#fd, chunk, chunk.byteLength)
 			if(status !== EEFS_SUCCESS) { throw new Error(`write error ${status}`) }
 			return

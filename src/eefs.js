@@ -554,7 +554,7 @@ export class EEFS {
 	 * @returns {Promise<StatusCode|InodeIndex>}
 	 */
 	static async #findFile(fs, filename) {
-		for(const inodeIndex of range(0, fs.inodeTable.numberOfFiles)) {
+		for(const inodeIndex of range(0, fs.inodeTable.numberOfFiles - 1)) {
 			if(fs.inodeTable.files[inodeIndex] === undefined) { continue }
 			const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, fs.inodeTable.files[inodeIndex].fileHeaderPointer)
 			if(!fileHeader.inUse) { continue }
@@ -687,7 +687,7 @@ export class EEFS {
 	 * @param {EEFSFileSystem} fs
 	 */
 	static async *listInodes(fs) {
-		for(const inodeIndex of range(0, fs.inodeTable.numberOfFiles)) {
+		for(const inodeIndex of range(0, fs.inodeTable.numberOfFiles - 1)) {
 			if(fs.inodeTable.files[inodeIndex] === undefined) { continue }
 			const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, fs.inodeTable.files[inodeIndex].fileHeaderPointer)
 			if(!fileHeader.inUse) { continue }

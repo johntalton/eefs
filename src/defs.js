@@ -25,6 +25,11 @@ export const EEFS_FREAD = 1
 export const EEFS_FWRITE = 2
 export const EEFS_FCREAT = 4
 
+// SeekOrigin
+export const SEEK_SET = 0
+export const SEEK_CUR = 1
+export const SEEK_END = 2
+
 // StatusCode
 export const EEFS_SUCCESS = (0)
 export const EEFS_ERROR = (-1)
@@ -53,3 +58,4 @@ export const O_ACCMODE = 0xF000
 // export const O_WRONLY  = 0x0001
 // export const O_RDWR    = 0x0002
 // export const O_ACCMODE = 0x0003
+

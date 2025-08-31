@@ -32,11 +32,7 @@ export const INUSE = {
  * @property {Intl.Collator} collator
  * @property {TextEncoder} encoder
  * @property {TextDecoder} decoder
- *
- * removed directoryDescriptor and directoryEntry
  */
-
-
 
 /**
  * @typedef {number} StatusCode
@@ -53,8 +49,6 @@ export const INUSE = {
 /**
  * @typedef {number} InodeIndex
  */
-
-
 
 /**
  * @typedef {Object} Header
@@ -106,7 +100,6 @@ export const INUSE = {
  * @property {Array<InodeTableEntry>} files
  */
 
-
 /**
  * @typedef {number} FileDescriptorMode
  */
@@ -124,7 +117,6 @@ export const INUSE = {
  * @property {InodeIndex} inodeIndex;
  */
 
-
 /**
  * @typedef {Array<FileDescriptor>} FileDescriptorTable
  */
@@ -137,15 +129,6 @@ export const INUSE = {
  */
 
 /**
- * @typedef {Object} _DirectoryEntry
- * @property {InodeIndex} inodeIndex
- * @property {string} filename
- * @property {boolean} inUse
- * @property {number} fileHeaderPointer
- * @property {number} maxFileSize
- */
-
-/**
  * @typedef {Object} Stat
  * @property {InodeIndex} inodeIndex
  * @property {number} CRC
@@ -154,4 +137,8 @@ export const INUSE = {
  * @property {Time} modificationDate
  * @property {Time} creationDate
  * @property {string} filename
+ */
+
+/**
+ * @typedef {number} SeekOrigin
  */

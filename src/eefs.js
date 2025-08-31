@@ -25,7 +25,10 @@ import {
 	O_RDONLY,
 	O_RDWR,
 	O_TRUNC,
-	O_WRONLY
+	O_WRONLY,
+	SEEK_CUR,
+	SEEK_END,
+	SEEK_SET
 } from './defs.js'
 
 import {
@@ -45,7 +48,8 @@ import { range, modeFromFlags, roundUp } from './utils.js'
  *  FileDescriptorIndex,
  *  FileDescriptorMode,
  *  FileAttributes,
- *  Stat
+ *  Stat,
+ *  SeekOrigin
  * } from './types.js'
  */
 
@@ -341,9 +345,87 @@ export class EEFS {
 		return EEFS_SUCCESS
 	}
 
-	static seek() { throw new Error('no impl') }
+	/**
+	 * @param {EEFSFileSystem} fs
+	 * @param {FileDescriptorIndex} fileDescriptor
+	 * @param {number} byteOffset
+	 * @param {SeekOrigin} origin
+	 */
+	static seek(fs, fileDescriptor, byteOffset, origin) {
+		if(!EEFS.#isValidFileDescriptor(fs, fileDescriptor)) { return EEFS_INVALID_ARGUMENT}
 
-	static async remove() { throw new Error('no impl') }
+		const beginningOfFilePointer = fs.fileDescriptorTable[fileDescriptor].fileHeaderPointer + FILE_HEADER_SIZE
+		const endOfFilePointer = beginningOfFilePointer + fs.fileDescriptorTable[fileDescriptor].fileSize
+
+		if(origin === SEEK_SET) {
+			if(byteOffset > endOfFilePointer) { return EEFS_INVALID_ARGUMENT }
+
+			if(byteOffset > fs.fileDescriptorTable[fileDescriptor].fileSize) {
+				fs.fileDescriptorTable[fileDescriptor].fileDataPointer = endOfFilePointer
+				fs.fileDescriptorTable[fileDescriptor].byteOffset = fs.fileDescriptorTable[fileDescriptor].fileSize
+				return fs.fileDescriptorTable[fileDescriptor].byteOffset
+			}
+
+			fs.fileDescriptorTable[fileDescriptor].fileDataPointer = beginningOfFilePointer + byteOffset
+			fs.fileDescriptorTable[fileDescriptor].byteOffset = byteOffset
+			return fs.fileDescriptorTable[fileDescriptor].byteOffset
+		}
+		else if(origin === SEEK_CUR) {
+			if((fs.fileDescriptorTable[fileDescriptor].byteOffset + byteOffset) < 0) { return EEFS_INVALID_ARGUMENT }
+
+			if((fs.fileDescriptorTable[fileDescriptor].byteOffset + byteOffset) > fs.fileDescriptorTable[fileDescriptor].fileSize) {
+				fs.fileDescriptorTable[fileDescriptor].fileDataPointer = endOfFilePointer
+				fs.fileDescriptorTable[fileDescriptor].byteOffset = fs.fileDescriptorTable[fileDescriptor].fileSize
+				return fs.fileDescriptorTable[fileDescriptor].byteOffset
+			}
+
+			fs.fileDescriptorTable[fileDescriptor].fileDataPointer += byteOffset
+			fs.fileDescriptorTable[fileDescriptor].byteOffset += byteOffset
+			return fs.fileDescriptorTable[fileDescriptor].byteOffset
+		}
+		else if(origin === SEEK_END) {
+			if((fs.fileDescriptorTable[fileDescriptor].fileSize + byteOffset) < 0) { return EEFS_INVALID_ARGUMENT }
+
+			if(byteOffset > 0) {
+				fs.fileDescriptorTable[fileDescriptor].fileDataPointer = endOfFilePointer
+				fs.fileDescriptorTable[fileDescriptor].byteOffset = fs.fileDescriptorTable[fileDescriptor].fileSize
+				return fs.fileDescriptorTable[fileDescriptor].byteOffset
+			}
+
+			fs.fileDescriptorTable[fileDescriptor].fileDataPointer = endOfFilePointer + byteOffset
+			fs.fileDescriptorTable[fileDescriptor].byteOffset = fs.fileDescriptorTable[fileDescriptor].fileSize + byteOffset
+			return fs.fileDescriptorTable[fileDescriptor].byteOffset
+		}
+
+		// unknown seek origin
+		return EEFS_INVALID_ARGUMENT
+	}
+
+	/**
+	 * @param {EEFSFileSystem} fs
+	 * @param {string} filename
+	 * @returns {Promise<StatusCode>}
+	 */
+	static async remove(fs, filename) {
+		if(!EEFS.#isValidFileName(fs, filename)) { return EEFS_INVALID_ARGUMENT }
+		if(EEFS_LIB_IS_WRITE_PROTECTED) { return EEFS_READ_ONLY_FILE_SYSTEM }
+
+		const inodeIndex = await EEFS.#findFile(fs, filename)
+		if(inodeIndex === EEFS_FILE_NOT_FOUND) { return EEFS_FILE_NOT_FOUND }
+
+		const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, fs.inodeTable.files[inodeIndex].fileHeaderPointer)
+		if((fileHeader.attributes & EEFS_ATTRIBUTE_READONLY) !== 0) { return EEFS_PERMISSION_DENIED }
+
+		if(EEFS.#fMode(fs, inodeIndex) !== 0) { return EEFS_PERMISSION_DENIED }
+
+		const now = Date.now() / 1000 // todo fix me
+		fileHeader.inUse = false
+		fileHeader.modificationDate = now
+
+		await Common.writeFileHeader(fs.eeprom, fs.encoder, fs.inodeTable.files[inodeIndex].fileHeaderPointer, fileHeader)
+
+		return EEFS_SUCCESS
+	}
 
 	/**
 	 * @param {EEFSFileSystem} fs
@@ -365,7 +447,9 @@ export class EEFS {
 		const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, fs.inodeTable.files[oldInodeIndex].fileHeaderPointer)
 		if((fileHeader.attributes & EEFS_ATTRIBUTE_READONLY) !== 0) { return EEFS_PERMISSION_DENIED }
 
+		const now = Date.now() / 1000 // todo fix me
 		fileHeader.filename = newFilename
+		fileHeader.modificationDate = now
 
 		await Common.writeFileHeader(fs.eeprom, fs.encoder, fs.inodeTable.files[oldInodeIndex].fileHeaderPointer, fileHeader)
 
@@ -439,59 +523,6 @@ export class EEFS {
 
 	/**
 	 * @param {EEFSFileSystem} fs
-	 * @returns {DirectoryDescriptor|undefined}
-	 */
-	// static openDir(fs) {
-	// 	if(fs.directoryDescriptor?.inUse === true) { return undefined }
-
-	// 	fs.directoryDescriptor = {
-	// 		inUse: true,
-	// 		inodeIndex: 0,
-	// 		inodeTable: fs.inodeTable
-	// 	}
-
-	// 	return fs.directoryDescriptor
-	// }
-
-	/**
-	 * @param {EEFSFileSystem} fs
-	 * @param {DirectoryDescriptor} directoryDescriptor
-	 * @returns {Promise<DirectoryEntry|undefined>}
-	 */
-	// static async readDir(fs, directoryDescriptor) {
-	// 	if(directoryDescriptor.inodeIndex >= directoryDescriptor.inodeTable.numberOfFiles) { return undefined }
-
-	// 	const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, directoryDescriptor.inodeTable.files[directoryDescriptor.inodeIndex].fileHeaderPointer)
-
-	// 	fs.directoryEntry = {
-	// 		inodeIndex: directoryDescriptor.inodeIndex,
-	// 		filename: fileHeader.filename,
-	// 		inUse: fileHeader.inUse,
-	// 		fileHeaderPointer: directoryDescriptor.inodeTable.files[directoryDescriptor.inodeIndex].fileHeaderPointer,
-	// 		maxFileSize: directoryDescriptor.inodeTable.files[directoryDescriptor.inodeIndex].maxFileSize
-	// 	}
-
-	// 	directoryDescriptor.inodeIndex += 1
-
-	// 	return fs.directoryEntry
-	// }
-
-	/**
-	 * @param {EEFSFileSystem} fs
-	 * @param {DirectoryDescriptor} directoryDescriptor
-	 * @returns {StatusCode}
-	 */
-	// static closeDir(fs, directoryDescriptor) {
-	// 	if(directoryDescriptor.inUse === false) { return EEFS_INVALID_ARGUMENT }
-
-	// 	directoryDescriptor.inUse = false
-	// 	fs.directoryEntry.inUse = false
-
-	// 	return EEFS_SUCCESS
-	// }
-
-	/**
-	 * @param {EEFSFileSystem} fs
 	 */
 	static hasOpenFiles(fs) {
 		for(const fileDescriptor of range(0, EEFS_MAX_OPEN_FILES - 1)) {
@@ -503,17 +534,6 @@ export class EEFS {
 
 		return false
 	}
-
-	/**
-	 * @param {EEFSFileSystem} fs
-	 */
-	// static hasOpenDir(fs) {
-	// 	if((fs.directoryDescriptor.inUse === true) && (fs.directoryDescriptor.inodeTable === fs.inodeTable)) {
-	// 		return true
-	// 	}
-
-	// 	return false
-	// }
 
 	/**
 	 * @param {EEFSFileSystem} fs
@@ -626,16 +646,6 @@ export class EEFS {
 
 	/**
 	 * @param {EEFSFileSystem} fs
-	 * @param {FileDescriptorIndex} fileDescriptor
-	 * @returns {FileDescriptor|undefined}
-	 */
-	// static fileDescriptor2Pointer(fs, fileDescriptor) {
-	// 	if(!EEFS.#isValidFileDescriptor(fs, fileDescriptor)) { return }
-	// 	return fs.fileDescriptorTable[fileDescriptor]
-	// }
-
-	/**
-	 * @param {EEFSFileSystem} fs
 	 * @param {string} filename
 	 * @returns {boolean}
 	 */
@@ -649,8 +659,6 @@ export class EEFS {
 
 		return true
 	}
-
-	static async checkDisk() { throw new Error('no impl') }
 
 	/**
 	 * @param {EEFSFileSystem} fs
@@ -680,8 +688,6 @@ export class EEFS {
 			}
 		}
 	}
-
-	// ----------
 
 	/**
 	 * @param {EEFSFileSystem} fs

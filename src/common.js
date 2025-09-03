@@ -188,9 +188,8 @@ export class Common {
 		dv.setUint32(16, fileHeader.modificationDate, littleEndian)
 		dv.setUint32(20, fileHeader.creationDate, littleEndian)
 
-		const filenameBufferU8 = encoder.encode(fileHeader.filename)
 		const fileHeaderBufferU8 = new Uint8Array(fileHeaderBuffer, dv.byteOffset + 24, EEFS_MAX_FILENAME_SIZE)
-		fileHeaderBufferU8.set(filenameBufferU8)
+		encoder.encodeInto(fileHeader.filename, fileHeaderBufferU8)
 
 		return eeprom.write(offset, fileHeaderBuffer)
 	}

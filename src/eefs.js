@@ -701,6 +701,7 @@ export class EEFS {
 			yield {
 				inodeIndex,
 				filename: fileHeader.filename,
+				fileSize: fileHeader.fileSize,
 				directory: false
 			}
 		}

@@ -1,6 +1,8 @@
 export class EEPROMArrayBuffer {
 	#bufferU8
 
+	get buffer() { return this.#bufferU8.buffer }
+
 	constructor(buffer) {
 		this.#bufferU8 = ArrayBuffer.isView(buffer) ?
 			new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength) :

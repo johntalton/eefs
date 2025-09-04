@@ -215,6 +215,15 @@ describe('EEFS (empty)', () => {
 		await EEFS.close(context.fs, fd)
 	})
 
+	it('should reject writeData with miss-matched length', async () => {
+		const fd = await EEFS.create(context.fs, 'test.tmp')
+
+		await assert.rejects(async () => {
+			await EEFS.write(context.fs, fd, new ArrayBuffer(10), 20)
+		})
+
+		await EEFS.close(context.fs, fd)
+	})
 })
 
 describe('EEFS (with files)', () => {

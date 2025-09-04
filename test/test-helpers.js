@@ -10,24 +10,11 @@ import { EEPROMArrayBuffer } from '@johntalton/eefs/eeprom-array-buffer'
 
 import { range } from '../src/utils.js'
 
+/**
+ * @import { EEFSFileSystemOptions, EEFSFileSystemHandle, EEFSFileSystem } from '@johntalton/eefs'
+ */
 
 export const DEFAULT_BASE_ADDRESS = 0
-
-/** @type {EEFSFileSystem} */
-export const DEFAULT_FS = Object.freeze({
-	inodeTable: {
-		baseAddress: DEFAULT_BASE_ADDRESS,
-		freeMemoryPointer: 0,
-		freeMemorySize: 0,
-		numberOfFiles: 0,
-		files: []
-	},
-	fileDescriptorTable: [],
-	fileDescriptorsInUse: 0,
-	fileDescriptorsHighWaterMark: 0,
-	directoryDescriptor: { },
-	directoryEntry: {}
-})
 
 export const DEFAULT_HELPERS = {
 	collator: new Intl.Collator(),
@@ -56,19 +43,19 @@ export async function commonBeforeEach(doFormat = false, doInit = false, addFile
 	const size = 32 * 1024 / 8
 	context.backingBuffer = new ArrayBuffer(size)
 
-	context.fs =  {
+	context.options =  {
 		eeprom: new EEPROMArrayBuffer(context.backingBuffer),
-		...structuredClone(DEFAULT_FS),
 		...DEFAULT_HELPERS
 	}
 
 	context.baseAddress = DEFAULT_BASE_ADDRESS
 
 	if(doFormat) {
-		format(context.fs.eeprom, context.baseAddress, size)
+		format(context.options.eeprom, context.baseAddress, size)
 
 		if(doInit) {
-			await EEFS.initFS(context.fs, context.baseAddress)
+			context.fs = await EEFS.initFS(context.options, context.baseAddress)
+			if(context.fs.status !== EEFS_SUCCESS) { throw new Error('failed to init FS') }
 
 			if(addFiles) {
 				await addFile(context.fs, 'README.md', `

@@ -6,7 +6,7 @@ import {
 } from '@johntalton/eefs'
 
 /**
- * @import { EEFSFileSystem, EEPROM } from '@johntalton/eefs'
+ * @import { EEFSFileSystem, EEFSFileSystemOptions, EEPROM } from '@johntalton/eefs'
  */
 
 export const DEFAULT_BASE_ADDRESS = 0
@@ -38,7 +38,7 @@ export function isValidFilename(name) {
 
 export class EEFSStorageManager {
 	/** @type {EEFSFileSystem} */
-	#fs
+	#handle
 	#root
 
 	/**
@@ -51,40 +51,28 @@ export class EEFSStorageManager {
 		const encoder = options?.encoder ?? new TextEncoder()
 		const decoder = options?.decoder ?? new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
 
-		/** @type {EEFSFileSystem} */
-		const fs = {
+		const fsOptions = {
 			eeprom,
-			inodeTable: {
-				baseAddress,
-				freeMemoryPointer: 0,
-				freeMemorySize: 0,
-				numberOfFiles: 0,
-				files: []
-			},
-			fileDescriptorTable: [],
-			fileDescriptorsInUse: 0,
-			fileDescriptorsHighWaterMark: 0,
-
 			collator,
 			encoder,
 			decoder
 		}
 
-		const status = await EEFS.initFS(fs, baseAddress)
-		if(status !== EEFS_SUCCESS) { throw new DOMException(`failed to init: ${status}`, 'InvalidStateError') }
+		const handle = await EEFS.initFS(fsOptions, baseAddress)
+		if(handle.status !== EEFS_SUCCESS) { throw new DOMException(`failed to init: ${handle.status}`, 'InvalidStateError') }
 
-		return new EEFSStorageManager(fs)
+		return new EEFSStorageManager(handle)
 	}
 
 	/**
-	 * @param {EEFSFileSystem} fs
+	 * @param {EEFSFileSystem} handle
 	 */
-	constructor(fs) {
-		this.#fs = fs
-		this.#root = new EEFSFileSystemDirectoryHandle(fs, '/')
+	constructor(handle) {
+		this.#handle = handle
+		this.#root = new EEFSFileSystemDirectoryHandle(this, '/')
 	}
 
-	get filesystem() { return this.#fs }
+	get handle() { return this.#handle }
 
 	async getDirectory() {
 		return this.#root
@@ -92,27 +80,36 @@ export class EEFSStorageManager {
 }
 
 export class EEFSFileHandle {
-	#fs
+	#sm
 	kind
 	name
 
-	constructor(fs, name) {
-		this.#fs = fs
+	/**
+	 * @param {EEFSStorageManager} sm
+	 * @param {string} name
+	 */
+	constructor(sm, name) {
+		this.#sm = sm
 		this.name = name
 	}
 
-	get filesystem() { return this.#fs }
+	get storageManager() { return this.#sm }
+	get handle() { return this.#sm.handle }
 
 	async isSameEntry(other) {
-
+		throw new DOMException('', '')
 	}
 }
 
 export class EEFSFileSystemDirectoryHandle extends EEFSFileHandle {
 	kind = 'directory'
 
-	constructor(fs, directoryName) {
-		super(fs, directoryName)
+	/**
+	 * @param {EEFSStorageManager} sm
+	 * @param {string} directoryName
+	 */
+	constructor(sm, directoryName) {
+		super(sm, directoryName)
 	}
 
 	async *[Symbol.asyncIterator]() {
@@ -123,9 +120,9 @@ export class EEFSFileSystemDirectoryHandle extends EEFSFileHandle {
 	 * @returns {AsyncGenerator<[string, EEFSFileSystemFileHandle]>}
 	 */
 	async *entries() {
-		for await (const inodeEntry of EEFS.listInodes(this.filesystem)) {
+		for await (const inodeEntry of EEFS.listInodes(this.handle)) {
 			const { filename, inodeIndex } = inodeEntry
-			const handle = new EEFSFileSystemFileHandle(this.filesystem, filename)
+			const handle = new EEFSFileSystemFileHandle(this.storageManager, filename)
 			yield [ filename, handle ]
 		}
 	}
@@ -151,17 +148,17 @@ export class EEFSFileSystemDirectoryHandle extends EEFSFileHandle {
 		const flags = create ? O_CREAT | O_RDONLY : O_RDONLY
 		const attributes = EEFS_ATTRIBUTE_NONE
 
-		const fd = await EEFS.open(this.filesystem, name, flags, attributes)
+		const fd = await EEFS.open(this.handle, name, flags, attributes)
 		if(fd < 0) { throw new DOMException(`open error ${fd}`, 'NotFoundError') }
 
 		// const stat = {}
-		// const statStatus = await EEFS.fstat(this.filesystem, fd, stat)
+		// const statStatus = await EEFS.fstat(this.handle, fd, stat)
 		// if(statStatus !== EEFS_SUCCESS) { throw new DOMException(`stat for fd ${statStatus}`, 'InvalidStateError') }
 
-		const closeStatus = await EEFS.close(this.filesystem, fd)
+		const closeStatus = await EEFS.close(this.handle, fd)
 		if(closeStatus !== EEFS_SUCCESS) { throw new DOMException('', 'InvalidStateError') }
 
-		return new EEFSFileSystemFileHandle(this.filesystem, name)
+		return new EEFSFileSystemFileHandle(this.storageManager, name)
 	}
 
 	/**
@@ -191,26 +188,30 @@ export class EEFSFileSystemDirectoryHandle extends EEFSFileHandle {
 export class EEFSFileSystemFileHandle extends EEFSFileHandle {
 	kind = 'file'
 
-	constructor(fs, filename) {
-		super(fs, filename)
+	/**
+	 * @param {EEFSStorageManager} sm
+	 * @param {string} filename
+	 */
+	constructor(sm, filename) {
+		super(sm, filename)
 	}
 
 	async getFile() {
 		const flags = O_RDONLY
 		const attributes = EEFS_ATTRIBUTE_NONE
 
-		const fd = await EEFS.open(this.filesystem, this.name, flags, attributes)
+		const fd = await EEFS.open(this.handle, this.name, flags, attributes)
 		if(fd < 0) { throw new DOMException('', 'NotFoundError') }
 
 		const stat = {}
-		const statStatus = await EEFS.fstat(this.filesystem, fd, stat)
+		const statStatus = await EEFS.fstat(this.handle, fd, stat)
 		if(statStatus !== EEFS_SUCCESS) { throw new DOMException(`stat for fd ${statStatus}`, 'InvalidStateError') }
 
 		const into = new ArrayBuffer(stat.fileSize)
-		const bytesRead = await EEFS.read(this.filesystem, fd, stat.fileSize, into)
+		const bytesRead = await EEFS.read(this.handle, fd, stat.fileSize, into)
 		if(bytesRead < 0 ) { throw new DOMException(`read failed ${bytesRead}`, 'InvalidStateError') }
 
-		const closeStatus = await EEFS.close(this.filesystem, fd)
+		const closeStatus = await EEFS.close(this.handle, fd)
 		if(closeStatus !== EEFS_SUCCESS) { throw new DOMException('', 'InvalidStateError') }
 
 		return new File([ into ], this.name, { type: 'application/octet-stream', lastModified: stat.modificationDate * 1000 })
@@ -221,7 +222,7 @@ export class EEFSFileSystemFileHandle extends EEFSFileHandle {
 	 */
 	async createWritable(options) {
 		const keepExistingData = options?.keepExistingData ?? false
-		const writable = new EEFSFileSystemWritableStream(this.filesystem, this.name)
+		const writable = new EEFSFileSystemWritableStream(this.handle, this.name)
 		return writable
 	}
 
@@ -231,17 +232,21 @@ export class EEFSFileSystemFileHandle extends EEFSFileHandle {
 }
 
 export class EEFSFileSystemWritableStreamUnderlyingSink {
-	#fs
+	#handle
 	#name
 	#fd
 
-	constructor(fs, name) {
-		this.#fs = fs
+	/**
+	 * @param {EEFSFileSystem} handle
+	 * @param {string} name
+	 */
+	constructor(handle, name) {
+		this.#handle = handle
 		this.#name = name
 	}
 
 	async start(controller) {
-		this.#fd = await EEFS.open(this.#fs, this.#name, O_WRONLY, EEFS_ATTRIBUTE_NONE)
+		this.#fd = await EEFS.open(this.#handle, this.#name, O_WRONLY, EEFS_ATTRIBUTE_NONE)
 		if(this.#fd  < 0) { throw new DOMException(`open error ${this.#fd}`, 'NotFoundError') }
 
 	}
@@ -254,7 +259,7 @@ export class EEFSFileSystemWritableStreamUnderlyingSink {
 		else if(chunk instanceof ArrayBuffer) { throw new Error('not yet (ArrayBuffer)') }
 		else if(ArrayBuffer.isView(chunk)) {
 			// console.log('Underlying Sink Write Chunk,', chunk.byteLength, chunk)
-			const status = await EEFS.write(this.#fs, this.#fd, chunk, chunk.byteLength)
+			const status = await EEFS.write(this.#handle, this.#fd, chunk, chunk.byteLength)
 			if(status !== EEFS_SUCCESS) { throw new Error(`write error ${status}`) }
 			return
 		}
@@ -264,16 +269,19 @@ export class EEFSFileSystemWritableStreamUnderlyingSink {
 	}
 
 	async close(controller) {
-		await EEFS.close(this.#fs, this.#fd)
+		await EEFS.close(this.#handle, this.#fd)
 	}
 
 	abort(reason) {}
 }
 
 export class EEFSFileSystemWritableStream extends WritableStream {
-
-	constructor(fs, name) {
-		super(new EEFSFileSystemWritableStreamUnderlyingSink(fs, name), {
+	/**
+	 * @param {EEFSFileSystem} handle
+	 * @param {string} name
+	 */
+	constructor(handle, name) {
+		super(new EEFSFileSystemWritableStreamUnderlyingSink(handle, name), {
 			highWaterMark: 1,
 			size(chunk) { return 1 }
 		})

@@ -41,6 +41,9 @@ import { range, modeFromFlags, roundUp } from './utils.js'
 
 /**
  * @import {
+ *  EEFSFileSystemOptions,
+ *  EEFSFileSystemWithStatus,
+ *  StatusError,
  *  EEFSFileSystem,
  *  FileSystemFlags,
  *  StatusCode,
@@ -55,32 +58,42 @@ import { range, modeFromFlags, roundUp } from './utils.js'
 
 export class EEFS {
 	/**
-	 * @param {EEFSFileSystem} fs
+	 * @param {EEFSFileSystemOptions} options
 	 * @param {number} baseAddress
-	 * @returns {Promise<StatusCode>}
+	 * @returns {Promise<EEFSFileSystemWithStatus|StatusError>}
 	 */
-	static async initFS(fs, baseAddress) {
-		const header = await Common.readHeader(fs.eeprom, baseAddress)
+	static async initFS(options, baseAddress) {
+		const { eeprom } = options
+		if(eeprom === undefined) { return { status: EEFS_NO_SUCH_DEVICE } }
 
-		if(header.magic !== EEFS_FILESYSTEM_MAGIC) { return EEFS_NO_SUCH_DEVICE }
-		if(header.version !== EEFS_FILESYSTEM_VERSION) { return EEFS_NO_SUCH_DEVICE }
-		if(header.numberOfFiles > EEFS_MAX_FILES) { return EEFS_NO_SUCH_DEVICE }
+		const header = await Common.readHeader(eeprom, baseAddress)
+
+		if(header.magic !== EEFS_FILESYSTEM_MAGIC) { return { status: EEFS_NO_SUCH_DEVICE } }
+		if(header.version !== EEFS_FILESYSTEM_VERSION) { return { status: EEFS_NO_SUCH_DEVICE } }
+		if(header.numberOfFiles > EEFS_MAX_FILES) { return { status: EEFS_NO_SUCH_DEVICE } }
 
 		const files = await Promise.all([ ...range(0, header.numberOfFiles - 1)].map(async inodeIndex => {
-			const fatEntry = await Common.readFATEntry(fs.eeprom, fs.inodeTable.baseAddress + FILE_ALLOCATION_TABLE_HEADER_SIZE + (inodeIndex * FILE_ALLOCATION_TABLE_ENTRY_SIZE))
+			const fatEntry = await Common.readFATEntry(eeprom, baseAddress + FILE_ALLOCATION_TABLE_HEADER_SIZE + (inodeIndex * FILE_ALLOCATION_TABLE_ENTRY_SIZE))
 			return {
 				fileHeaderPointer: baseAddress + fatEntry.fileHeaderOffset,
 				maxFileSize: fatEntry.maxFileSize
 			}
 		}))
 
-		fs.inodeTable.baseAddress = baseAddress
-		fs.inodeTable.freeMemoryPointer = baseAddress + header.freeMemoryOffset
-		fs.inodeTable.freeMemorySize = header.freeMemorySize
-		fs.inodeTable.numberOfFiles = header.numberOfFiles
-		fs.inodeTable.files = files
-
-		return EEFS_SUCCESS
+		return {
+			...options,
+			status: EEFS_SUCCESS,
+			inodeTable: {
+				baseAddress,
+				freeMemoryPointer: baseAddress + header.freeMemoryOffset,
+				freeMemorySize: header.freeMemorySize,
+				numberOfFiles: header.numberOfFiles,
+				files
+			},
+			fileDescriptorTable: [],
+			fileDescriptorsInUse: 0,
+			fileDescriptorsHighWaterMark: 0
+		}
 	}
 
 	/**
@@ -89,7 +102,6 @@ export class EEFS {
 	 */
 	static freeFS(fs) {
 		if(EEFS.hasOpenFiles(fs)) { return EEFS_DEVICE_IS_BUSY }
-		// if(EEFS.hasOpenDir(fs)) { return EEFS_DEVICE_IS_BUSY }
 
 		fs.inodeTable.baseAddress = 0
 		fs.inodeTable.freeMemoryPointer = 0
@@ -459,7 +471,7 @@ export class EEFS {
 	/**
 	 * @param {EEFSFileSystem} fs
 	 * @param {string} filename
-	 * @param {Stat} stat
+	 * @param {Partial<Stat>} stat
 	 * @returns {Promise<StatusCode>}
 	 */
 	static async stat(fs, filename, stat) {
@@ -482,7 +494,7 @@ export class EEFS {
 	/**
 	 * @param {EEFSFileSystem} fs
 	 * @param {FileDescriptorIndex} fileDescriptor
-	 * @param {Stat} stat
+	 * @param {Partial<Stat>} stat
 	 * @returns {Promise<StatusCode>}
 	 */
 	static async fstat(fs, fileDescriptor, stat) {

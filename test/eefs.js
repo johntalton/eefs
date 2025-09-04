@@ -18,11 +18,12 @@ import {
 	EEFS_MAX_OPEN_FILES,
 	EEFS_NO_FREE_FILE_DESCRIPTOR,
 	EEFS_ATTRIBUTE_READONLY,
-	EEFS_ATTRIBUTE_NONE
+	EEFS_ATTRIBUTE_NONE,
+	FILE_ALLOCATION_TABLE_SIZE
 } from '@johntalton/eefs'
 import { EEPROMArrayBuffer } from '@johntalton/eefs/eeprom-array-buffer'
 
-import { commonBeforeEach, DEFAULT_BASE_ADDRESS, DEFAULT_FS, DEFAULT_HELPERS } from './test-helpers.js'
+import { commonBeforeEach, DEFAULT_BASE_ADDRESS, DEFAULT_HELPERS } from './test-helpers.js'
 import { range } from '../src/utils.js'
 
 describe('EEFS (no context)', () => {
@@ -30,9 +31,8 @@ describe('EEFS (no context)', () => {
 		const size = 8
 		const backingBuffer = new ArrayBuffer(size)
 
-		const fs =  {
+		const options =  {
 			eeprom: new EEPROMArrayBuffer(backingBuffer),
-			...structuredClone(DEFAULT_FS),
 			...DEFAULT_HELPERS
 		}
 
@@ -40,7 +40,7 @@ describe('EEFS (no context)', () => {
 		// format(fs.eeprom, DEFAULT_BASE_ADDRESS, size)
 
 		await assert.rejects(async () => {
-			await EEFS.initFS(fs, DEFAULT_BASE_ADDRESS)
+			await EEFS.initFS(options, DEFAULT_BASE_ADDRESS)
 		})
 	})
 })
@@ -53,8 +53,8 @@ describe('EEFS (unformatted)', () => {
 	})
 
 	it('should fail unformatted inits', async () => {
-		const status = await EEFS.initFS(context.fs, DEFAULT_BASE_ADDRESS)
-		assert.equal(status, EEFS_NO_SUCH_DEVICE)
+		const handle = await EEFS.initFS(context.options, DEFAULT_BASE_ADDRESS)
+		assert.equal(handle.status, EEFS_NO_SUCH_DEVICE)
 	})
 })
 
@@ -65,26 +65,38 @@ describe('EEFS (formatted)', () => {
 		context = await commonBeforeEach(true, false)
 	})
 
+	it('should not init if no device', () => {
+
+	})
+
 	it('should not init if bad version', async () => {
 		const backingU32 = new Uint32Array(context.backingBuffer)
 		backingU32[2] = 42 // version is at offset 2
 
-		const status = await EEFS.initFS(context.fs, DEFAULT_BASE_ADDRESS)
-		assert.equal(status, EEFS_NO_SUCH_DEVICE)
+		const handle = await EEFS.initFS(context.options, DEFAULT_BASE_ADDRESS)
+		assert.equal(handle.status, EEFS_NO_SUCH_DEVICE)
 	})
 
 	it('should not init if max files', async () => {
 		const backingU32 = new Uint32Array(context.backingBuffer)
 		backingU32[5] = 0xFFFF // numberOfFiles is at offset 5
 
-		const status = await EEFS.initFS(context.fs, DEFAULT_BASE_ADDRESS)
-		assert.equal(status, EEFS_NO_SUCH_DEVICE)
+		const handle = await EEFS.initFS(context.options, DEFAULT_BASE_ADDRESS)
+		assert.equal(handle.status, EEFS_NO_SUCH_DEVICE)
 	})
 
 	it('should init', async () => {
-		const status = await EEFS.initFS(context.fs, DEFAULT_BASE_ADDRESS)
-		assert.equal(status, EEFS_SUCCESS)
-		assert.equal(context.fs.inodeTable.baseAddress, DEFAULT_BASE_ADDRESS)
+		const handle = await EEFS.initFS(context.options, DEFAULT_BASE_ADDRESS)
+		assert.equal(handle.status, EEFS_SUCCESS)
+		assert.equal(handle.inodeTable.baseAddress, DEFAULT_BASE_ADDRESS)
+		assert.equal(handle.inodeTable.freeMemorySize, 32 * 1024 / 8 - FILE_ALLOCATION_TABLE_SIZE)
+		assert.equal(handle.inodeTable.numberOfFiles, 0)
+		assert.ok(Array.isArray(handle.inodeTable.files))
+		assert.equal(handle.inodeTable.files.length, 0)
+
+		assert.ok(Array.isArray(handle.fileDescriptorTable))
+		assert.equal(handle.fileDescriptorTable.length, 0)
+		assert.equal(handle.fileDescriptorsInUse, 0)
 	})
 })
 
@@ -125,11 +137,13 @@ describe('EEFS (empty)', () => {
 	})
 
 	it('should disallow open undefined filename', async () => {
+		// @ts-ignore
 		const fd = await EEFS.open(context.fs, undefined, O_CREAT)
 		assert.equal(fd, EEFS_INVALID_ARGUMENT)
 	})
 
 	it('should disallow open non string filename', async () => {
+		// @ts-ignore
 		const fd = await EEFS.open(context.fs, true, O_CREAT)
 		assert.equal(fd, EEFS_INVALID_ARGUMENT)
 	})
@@ -522,10 +536,10 @@ describe('EEFS (full)', () => {
 	it('should re-initFS', async () => {
 		const freeStatus = EEFS.freeFS(context.fs)
 		assert.equal(freeStatus, EEFS_SUCCESS)
-		const status = await EEFS.initFS(context.fs, DEFAULT_BASE_ADDRESS)
-		assert.equal(status, EEFS_SUCCESS)
+		const result = await EEFS.initFS(context.options, DEFAULT_BASE_ADDRESS)
+		assert.equal(result.status, EEFS_SUCCESS)
 
-		assert.equal(context.fs.inodeTable.numberOfFiles, 6)
+		assert.equal(result.inodeTable.numberOfFiles, 6)
 
 	})
 })

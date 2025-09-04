@@ -1,4 +1,8 @@
-import { EEFS_MAX_FILENAME_SIZE, EEFS_MAX_FILES } from './defs.js'
+import {
+	EEFS_MAX_FILENAME_SIZE,
+	EEFS_MAX_FILES,
+	EEFS_SUCCESS,
+	EEFS_NO_SUCH_DEVICE } from './defs.js'
 
 export const BIT_32_SIZE = 4
 export const TIME_SIZE = BIT_32_SIZE
@@ -23,20 +27,42 @@ export const INUSE = {
  */
 
 /**
- * @typedef {Object} EEFSFileSystem
+ * @typedef {Object} EEFSFileSystemOptions
  * @property {EEPROM} eeprom
- * @property {InodeTable} inodeTable
- * @property {FileDescriptorTable} fileDescriptorTable
- * @property {number} fileDescriptorsInUse
- * @property {number} fileDescriptorsHighWaterMark
  * @property {Intl.Collator} collator
  * @property {TextEncoder} encoder
  * @property {TextDecoder} decoder
  */
 
 /**
+ * @typedef {Object} EEFSFileSystemHandle
+ * @property {InodeTable} inodeTable
+ * @property {FileDescriptorTable} fileDescriptorTable
+ * @property {number} fileDescriptorsInUse
+ * @property {number} fileDescriptorsHighWaterMark
+ */
+
+/**
+ * @typedef {EEFSFileSystemHandle & EEFSFileSystemOptions} EEFSFileSystem
+ */
+
+/**
  * @typedef {number} StatusCode
  */
+
+/**
+ * @typedef {{ status: StatusCode }} Status
+ */
+
+/**
+ * @typedef {EEFSFileSystem & Status & { status: EEFS_SUCCESS }} EEFSFileSystemWithStatus
+ */
+
+/**
+ * @typedef {Status & { status: EEFS_NO_SUCH_DEVICE }} StatusError
+ */
+
+
 
 /**
  * @typedef {number} FileSystemFlags

@@ -489,6 +489,55 @@ describe('EEFS (with files)', () => {
 		assert.equal(status, EEFS_INVALID_ARGUMENT)
 	})
 
+	it('should not allow remove on bad file name', async () => {
+		const status = await EEFS.remove(context.fs, '')
+		assert.equal(status, EEFS_INVALID_ARGUMENT)
+	})
+
+	it('should not allow remove of not found file', async () => {
+		const status = await EEFS.remove(context.fs, 'some_file_name')
+		assert.equal(status, EEFS_FILE_NOT_FOUND)
+	})
+
+	it('should not allow remove of readonly file', async () => {
+		const status = await EEFS.remove(context.fs, '🔒.json')
+		assert.equal(status, EEFS_PERMISSION_DENIED)
+	})
+
+	it('should not allow remove of open file', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDONLY)
+
+		const status = await EEFS.remove(context.fs, 'README.md')
+		assert.equal(status, EEFS_PERMISSION_DENIED)
+
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should remove file', async () => {
+		const initialFileListing = await Array.fromAsync(EEFS.listInodes(context.fs))
+		assert.equal(initialFileListing.length, 3)
+
+		assert.equal(context.fs.inodeTable.numberOfFiles, 3)
+		const backingU8 = new Uint8Array(context.backingBuffer)
+		// InUse is true
+		assert.equal(backingU8[536 + 4 + 3], 1)
+
+		const status = await EEFS.remove(context.fs, 'README.md')
+		assert.equal(status, EEFS_SUCCESS)
+		assert.equal(context.fs.inodeTable.numberOfFiles, 3)
+
+		const inodeIndexOfRemovedFile = 0
+		assert.equal(context.fs.inodeTable.files[inodeIndexOfRemovedFile].fileHeaderPointer, 536)
+
+		// check InUse is false
+		assert.equal(backingU8[536 + 4 + 3], 0)
+
+		const statStatus = await EEFS.stat(context.fs, 'README.md', {})
+		assert.equal(statStatus, EEFS_FILE_NOT_FOUND)
+
+		const fileListing = await Array.fromAsync(EEFS.listInodes(context.fs))
+		assert.equal(fileListing.length, 2)
+	})
 
 })
 

@@ -47,15 +47,10 @@ export class EEFSStorageManager {
 	 */
 	static async from(eeprom, options) {
 		const baseAddress = options?.baseAddress ?? DEFAULT_BASE_ADDRESS
-		const collator = options?.collator ?? new Intl.Collator()
-		const encoder = options?.encoder ?? new TextEncoder()
-		const decoder = options?.decoder ?? new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
 
 		const fsOptions = {
-			eeprom,
-			collator,
-			encoder,
-			decoder
+			...options,
+			eeprom
 		}
 
 		const handle = await EEFS.initFS(fsOptions, baseAddress)

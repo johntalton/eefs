@@ -19,7 +19,8 @@ import {
 	EEFS_NO_FREE_FILE_DESCRIPTOR,
 	EEFS_ATTRIBUTE_READONLY,
 	EEFS_ATTRIBUTE_NONE,
-	FILE_ALLOCATION_TABLE_SIZE
+	FILE_ALLOCATION_TABLE_SIZE,
+	SEEK_SET
 } from '@johntalton/eefs'
 import { EEPROMArrayBuffer } from '@johntalton/eefs/eeprom-array-buffer'
 
@@ -539,6 +540,34 @@ describe('EEFS (with files)', () => {
 		assert.equal(fileListing.length, 2)
 	})
 
+	it('should not allow seek of bad file descriptor', async () => {
+		const status = EEFS.seek(context.fs, -1, 42, SEEK_SET)
+		assert.equal(status, EEFS_INVALID_ARGUMENT)
+	})
+
+	it('should not allow seek set out of bounds', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDWR)
+		const byteOffset = EEFS.seek(context.fs, fd, 1000, SEEK_SET)
+		assert.equal(byteOffset, EEFS_INVALID_ARGUMENT)
+
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should allow seek set beyond EOF to fileSize', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDWR)
+		const byteOffset = EEFS.seek(context.fs, fd, 77, SEEK_SET)
+		assert.equal(byteOffset, 54)
+
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should allow seek set less then fileSize to specific value', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDWR)
+		const byteOffset = EEFS.seek(context.fs, fd, 42, SEEK_SET)
+		assert.equal(byteOffset, 42)
+
+		await EEFS.close(context.fs, fd)
+	})
 })
 
 describe('EEFS (full)', () => {

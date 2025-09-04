@@ -19,7 +19,7 @@ export const DEFAULT_BASE_ADDRESS = 0
 export const DEFAULT_HELPERS = {
 	collator: new Intl.Collator(),
 	encoder: new TextEncoder(),
-	decoder: new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
+	decoder: new TextDecoder('utf-8', { fatal: true, ignoreBOM: false })
 }
 
 export async function addFile(fs, name, textContent, attributes = EEFS_ATTRIBUTE_NONE) {

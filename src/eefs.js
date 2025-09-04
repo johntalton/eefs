@@ -66,6 +66,10 @@ export class EEFS {
 		const { eeprom } = options
 		if(eeprom === undefined) { return { status: EEFS_NO_SUCH_DEVICE } }
 
+		const collator = options?.collator ?? new Intl.Collator()
+		const encoder = options?.encoder ?? new TextEncoder()
+		const decoder = options?.decoder ?? new TextDecoder('utf-8', { fatal: true, ignoreBOM: false })
+
 		const header = await Common.readHeader(eeprom, baseAddress)
 
 		if(header.magic !== EEFS_FILESYSTEM_MAGIC) { return { status: EEFS_NO_SUCH_DEVICE } }
@@ -81,8 +85,13 @@ export class EEFS {
 		}))
 
 		return {
-			...options,
+			eeprom,
+			collator,
+			encoder,
+			decoder,
+
 			status: EEFS_SUCCESS,
+
 			inodeTable: {
 				baseAddress,
 				freeMemoryPointer: baseAddress + header.freeMemoryOffset,

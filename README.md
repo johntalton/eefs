@@ -8,14 +8,21 @@
 
 Implementation of [NASA EEFS](https://github.com/nasa/eefs).
 
+# Usage
+
+EEPROM file systems are best target for a write-once read many use case.
+
+The example bellow shows writing to an offline `EEPROMArrayBuffer` implementation, which then can be copied in-full to the eeprom once files are generated and stored as-desired.
+
+Using live [EEPROM](https://github.com/johntlaton/eeprom) device is also fully supported
+
 # Example
 
 ```javascript
 import {
   EEFS,
   EEFS_SUCCESS,
-  O_CREAT, O_WRONLY,
-  EEFS_ATTRIBUTE_NONE
+  O_CREAT, O_WRONLY
 } from '@johntalton/eefs'
 import { EEPROMArrayBuffer } from '@johntalton/eefs/eeprom-array-buffer'
 
@@ -24,20 +31,79 @@ const ab = new ArrayBuffer(32 * 1024 / 8)
 const eeprom = new EEPROMArrayBuffer(ab)
 
 const BASE_ADDRESS = 0
-const filesystem = {
-  ...DEFAULT_FILESYSTEM,
+const options = {
   eeprom
 }
 
-const initStatus = await EEFS.initFS(filesystem, BASE_ADDRESS)
-if(initStatus !== EEFS_SUCCESS) { /* handle it */ }
+const handle = await EEFS.initFS(options, BASE_ADDRESS)
+if(handle.status !== EEFS_SUCCESS) { /* handle it */ }
 
-const fd = await EEFS.open(filesystem, 'config.json', O_CREAT|O_WRONLY, EEFS_ATTRIBUTE_NONE)
+const fd = await EEFS.open(handle, 'config.json', O_CREAT|O_WRONLY)
 if(fd < 0) { /* not ok */ }
 
 // ... etc
 
+// make sure to close 👍
+await EEFS.close(handle, fd)
+
+
 ```
+
+# Example with Custom TextDecoder / Collator
+
+`initFS` can take in an `encoder` `decoder` and `collator` in order to process File Name.  The default is `utf-8` and `fatal` (which is common for most all cases).
+
+However, if loading a filesystem that has been written with `utf-16be` (or other encodings) or there is a change of decoding issues (set `fatal` to false), the use of custom `decoder` can preserver what may be otherwise "invalid" file names.
+
+This can also be useful when debugging a fs that may or may-not be in proper format.
+
+Similarly, if a `collator` is passed in, it will be used to compare file names where function take in `filename` as a parameter.  This can be useful for supporting custom filenames etc.
+
+```javascript
+import { EEFS } from '@johntalton/eefs'
+import { EEPROM } from '@johntalton/eeprom'
+
+const eeprom = /* see EEPROM docs */
+
+const options = {
+  eeprom,
+  encoder: new TextEncoder(),
+  decoder: new TextDecoder('utf-16', { fatal: false, ignoreBOM: true })
+  collator: Intl.Collator()
+}
+
+const handle = await EEFS.initFS(options, BASE_ADDRESS)
+for await (const { filename } of EEFS.listInodes(handle)) {
+  // note: because fatal is false, this be garbage-ish
+  console.log('filename:', filename)
+}
+
+```
+
+# Micro
+
+The original source include a "micro" implementation that can be used to bypass most of the inode/fileDescriptor ceremony and directly access file.  While the use case is less interesting it is included here.
+
+The `findFile` method take in similar parameter as `initFS` (including custom encoders etc) and returns a standard [`File`](https://developer.mozilla.org/en-US/docs/Web/API/File) implementation.
+
+```javascript
+import { MicroFS } from '@johntalton/eefs/micro'
+
+const eeprom = /* form some place */
+const baseAddress = 0
+const file = await MicroEEFS.findFile(eeprom, baseAddress, 'boot.txt')
+if(file === undefined) { /* handle it ⛔️ */ }
+
+console.log('last modified', file.lastModified)
+
+// always an octet stream as eefs has not mime concept
+// file.type === 'application/octet-stream'
+
+const u8 = await file.bytes()
+/* process buffer */
+
+```
+
 
 # License
 

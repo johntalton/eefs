@@ -201,19 +201,7 @@ export class Common {
 	 * @param {AllowSharedBufferSource} target
 	 */
 	static async readData(eeprom, offset, length, target) {
-		const ab = await eeprom.read(offset, length, target)
-
-		// const targetU8 = ArrayBuffer.isView(target) ?
-		// 	new Uint8Array(target.buffer, target.byteOffset, target.byteLength) :
-		// 	new Uint8Array(target, 0, target.byteLength)
-
-		// const u8 = ArrayBuffer.isView(ab) ?
-		// 	new Uint8Array(ab.buffer, ab.byteOffset, ab.byteLength) :
-		// 	new Uint8Array(ab, 0, ab.byteLength)
-
-		// targetU8.set(u8)
-
-		return ab
+		return eeprom.read(offset, length, target)
 	}
 
 	/**

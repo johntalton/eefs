@@ -161,6 +161,81 @@ describe('Common', () => {
 			assert.equal(fileHeader.creationDate, 0)
 			assert.equal(fileHeader.filename, '')
 		})
+
+		it('should read custom with TextDecoder utf-16be with BOM', async () => {
+			const ab = new ArrayBuffer(FILE_HEADER_SIZE)
+			const u8 = new Uint8Array(ab, 24)
+			u8.set([
+				0xFE, 0xFF,  // BOM big-endian
+				0xd8, 0x3d,
+				0xdc, 0x69,
+				0xd8, 0x3c,
+				0xdf, 0xfb,
+				0x20, 0x0d,
+				0x27, 0x64,
+				0xfe, 0x0f,
+				0x20, 0x0d,
+				0xd8, 0x3d,
+				0xdc, 0x8b,
+				0x20, 0x0d,
+				0xd8, 0x3d,
+				0xdc, 0x69,
+				0xd8, 0x3c,
+				0xdf, 0xfc,
+				0, 0, 0, 0, 0, 0, 0, 0
+			])
+
+			const eeprom = {
+				async read(offset, length, into) { return ab },
+				async write(offset, buffer) {}
+			}
+
+			const decoder = new TextDecoder('utf-16be', { fatal: true, ignoreBOM: false })
+			const offset = 0
+			const fileHeader = await Common.readFileHeader(eeprom, decoder, offset)
+
+			assert.equal(fileHeader.filename, '👩🏻‍❤️‍💋‍👩🏼')
+		})
+
+		it('should reject bad data with custom TextDecoder with fatal True', async () => {
+			const ab = new ArrayBuffer(FILE_HEADER_SIZE)
+			const u8 = new Uint8Array(ab, 24)
+			u8.set([
+				0xFE, 0xFF,  // BOM big-endians
+				0xff, 0      // trash
+			])
+
+			const eeprom = {
+				async read(offset, length, into) { return ab },
+				async write(offset, buffer) {}
+			}
+
+			const decoder = new TextDecoder('utf-16be', { fatal: true, ignoreBOM: true })
+			const offset = 0
+			await assert.rejects(() => Common.readFileHeader(eeprom, decoder, offset))
+		})
+
+		it('should read custom bad data with TextDecoder with fatal False', async () => {
+			const ab = new ArrayBuffer(FILE_HEADER_SIZE)
+			const u8 = new Uint8Array(ab, 24)
+			u8.set([
+				0xFE, 0xFF,  // BOM big-endians
+				0xff, 0      // trash
+			])
+
+			const eeprom = {
+				async read(offset, length, into) { return ab },
+				async write(offset, buffer) {}
+			}
+
+			const decoder = new TextDecoder('utf-16be', { fatal: false, ignoreBOM: true })
+			const offset = 0
+			const fileHeader = await Common.readFileHeader(eeprom, decoder, offset)
+
+			assert.equal(fileHeader.filename.length, 2)
+			assert.equal(fileHeader.filename.charCodeAt(0), 0xfeff)
+			assert.equal(fileHeader.filename.charCodeAt(1), 0xfffd)
+		})
 	})
 
 	describe('writeFileHeader', () => {

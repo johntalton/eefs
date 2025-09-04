@@ -27,11 +27,19 @@ export const INUSE = {
  */
 
 /**
- * @typedef {Object} EEFSFileSystemOptions
- * @property {EEPROM} eeprom
+ * @typedef {Object} EEFSFileSystemOptionsWithDefaults
  * @property {Intl.Collator} collator
  * @property {TextEncoder} encoder
  * @property {TextDecoder} decoder
+ */
+
+/**
+ * @typedef {Object} EEFSFileSystemOptionsRequired
+ * @property {EEPROM} eeprom
+ */
+
+/**
+ * @typedef {EEFSFileSystemOptionsRequired & Partial<EEFSFileSystemOptionsWithDefaults>} EEFSFileSystemOptions
  */
 
 /**
@@ -43,7 +51,7 @@ export const INUSE = {
  */
 
 /**
- * @typedef {EEFSFileSystemHandle & EEFSFileSystemOptions} EEFSFileSystem
+ * @typedef {EEFSFileSystemHandle & EEFSFileSystemOptionsRequired & EEFSFileSystemOptionsWithDefaults} EEFSFileSystem
  */
 
 /**

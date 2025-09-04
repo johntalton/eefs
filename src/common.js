@@ -23,27 +23,26 @@ import { stripZeroU8 } from './utils.js'
  * } from './types.js'
  */
 
-
-/**
- * @param {EEPROM} eeprom
- * @param {number} baseAddress
- * @param {number} byteSize
- * @param {number} [version = EEFS_FILESYSTEM_VERSION]
- */
-export async function format(eeprom, baseAddress, byteSize, version = EEFS_FILESYSTEM_VERSION) {
-	if(byteSize < FILE_ALLOCATION_TABLE_HEADER_SIZE) { throw new Error('size not adequate for fat header') }
-
-  return Common.writeHeader(eeprom, baseAddress, {
-    CRC: 0,
-    magic: EEFS_FILESYSTEM_MAGIC,
-    version,
-    freeMemoryOffset: baseAddress + FILE_ALLOCATION_TABLE_SIZE,
-    freeMemorySize: byteSize - FILE_ALLOCATION_TABLE_SIZE,
-    numberOfFiles: 0
-  })
-}
-
 export class Common {
+	/**
+	 * @param {EEPROM} eeprom
+	 * @param {number} baseAddress
+	 * @param {number} byteSize
+	 * @param {number} [version = EEFS_FILESYSTEM_VERSION]
+	 */
+	static async format(eeprom, baseAddress, byteSize, version = EEFS_FILESYSTEM_VERSION) {
+		if(byteSize < FILE_ALLOCATION_TABLE_HEADER_SIZE) { throw new Error('size not adequate for fat header') }
+
+		return Common.writeHeader(eeprom, baseAddress, {
+			CRC: 0,
+			magic: EEFS_FILESYSTEM_MAGIC,
+			version,
+			freeMemoryOffset: baseAddress + FILE_ALLOCATION_TABLE_SIZE,
+			freeMemorySize: byteSize - FILE_ALLOCATION_TABLE_SIZE,
+			numberOfFiles: 0
+		})
+	}
+
 	/**
 	 * @param {EEPROM} eeprom
 	 * @param {number} baseAddress
@@ -217,3 +216,4 @@ export class Common {
 	}
 }
 
+export const format = Common.format

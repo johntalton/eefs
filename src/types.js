@@ -59,7 +59,7 @@ export const INUSE = {
  */
 
 /**
- * @typedef {{ status: StatusCode }} Status
+ * @typedef {{ status: StatusCode, why?: string }} Status
  */
 
 /**

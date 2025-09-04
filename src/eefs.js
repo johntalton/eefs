@@ -64,7 +64,7 @@ export class EEFS {
 	 */
 	static async initFS(options, baseAddress) {
 		const { eeprom } = options
-		if(eeprom === undefined) { return { status: EEFS_NO_SUCH_DEVICE } }
+		if(eeprom === undefined) { return { status: EEFS_NO_SUCH_DEVICE, why: 'invalid divice' } }
 
 		const collator = options?.collator ?? new Intl.Collator()
 		const encoder = options?.encoder ?? new TextEncoder()
@@ -72,9 +72,9 @@ export class EEFS {
 
 		const header = await Common.readHeader(eeprom, baseAddress)
 
-		if(header.magic !== EEFS_FILESYSTEM_MAGIC) { return { status: EEFS_NO_SUCH_DEVICE } }
-		if(header.version !== EEFS_FILESYSTEM_VERSION) { return { status: EEFS_NO_SUCH_DEVICE } }
-		if(header.numberOfFiles > EEFS_MAX_FILES) { return { status: EEFS_NO_SUCH_DEVICE } }
+		if(header.magic !== EEFS_FILESYSTEM_MAGIC) { return { status: EEFS_NO_SUCH_DEVICE, why: 'bad magic' } }
+		if(header.version !== EEFS_FILESYSTEM_VERSION) { return { status: EEFS_NO_SUCH_DEVICE, why: 'bad version' } }
+		if(header.numberOfFiles > EEFS_MAX_FILES) { return { status: EEFS_NO_SUCH_DEVICE, why: 'max files' } }
 
 		const files = await Promise.all([ ...range(0, header.numberOfFiles - 1)].map(async inodeIndex => {
 			const fatEntry = await Common.readFATEntry(eeprom, baseAddress + FILE_ALLOCATION_TABLE_HEADER_SIZE + (inodeIndex * FILE_ALLOCATION_TABLE_ENTRY_SIZE))
@@ -597,6 +597,7 @@ export class EEFS {
 	static async #findFile(fs, filename) {
 		for(const inodeIndex of range(0, fs.inodeTable.numberOfFiles - 1)) {
 			if(fs.inodeTable.files[inodeIndex] === undefined) { continue }
+
 			const fileHeader = await Common.readFileHeader(fs.eeprom, fs.decoder, fs.inodeTable.files[inodeIndex].fileHeaderPointer)
 			if(!fileHeader.inUse) { continue }
 			if(fs.collator.compare(fileHeader.filename, filename) === 0) {

@@ -20,7 +20,9 @@ import {
 	EEFS_ATTRIBUTE_READONLY,
 	EEFS_ATTRIBUTE_NONE,
 	FILE_ALLOCATION_TABLE_SIZE,
-	SEEK_SET
+	SEEK_SET,
+	SEEK_CUR,
+	SEEK_END
 } from '@johntalton/eefs'
 import { EEPROMArrayBuffer } from '@johntalton/eefs/eeprom-array-buffer'
 
@@ -568,6 +570,56 @@ describe('EEFS (with files)', () => {
 
 		await EEFS.close(context.fs, fd)
 	})
+
+	it('should not allow seek current past file start', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDWR)
+		const byteOffset = EEFS.seek(context.fs, fd, -77, SEEK_CUR)
+		assert.equal(byteOffset, EEFS_INVALID_ARGUMENT)
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should allow seek current to end of file', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDWR)
+		const byteOffset = EEFS.seek(context.fs, fd, 77, SEEK_CUR)
+		assert.equal(byteOffset, 54)
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should allow seek current within file', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDWR)
+		const byteOffset = EEFS.seek(context.fs, fd, 2, SEEK_CUR)
+		assert.equal(byteOffset, 2)
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should not allow seek end past file start', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDWR)
+		const byteOffset = EEFS.seek(context.fs, fd, -77, SEEK_END)
+		assert.equal(byteOffset, EEFS_INVALID_ARGUMENT)
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should allow seek end positive to end of file', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDWR)
+		const byteOffset = EEFS.seek(context.fs, fd, 77, SEEK_END)
+		assert.equal(byteOffset, 54)
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should allow seek end negative to within file', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDWR)
+		const byteOffset = EEFS.seek(context.fs, fd, -4, SEEK_END)
+		assert.equal(byteOffset, 50)
+		await EEFS.close(context.fs, fd)
+	})
+
+	it('should not seek if origin is invalid', async () => {
+		const fd = await EEFS.open(context.fs, 'README.md', O_RDWR)
+		const byteOffset = EEFS.seek(context.fs, fd, 0, 77)
+		assert.equal(byteOffset, EEFS_INVALID_ARGUMENT)
+		await EEFS.close(context.fs, fd)
+	})
+
 })
 
 describe('EEFS (full)', () => {

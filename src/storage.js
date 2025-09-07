@@ -275,8 +275,6 @@ export class EEFSFileSystemWritableStreamUnderlyingSink {
 		const create = this.#options?.create ?? false
 		const keepExistingData = this.#options?.keepExistingData ?? false
 
-		console.log('START', create, keepExistingData)
-
 		const flags = (create ? O_CREAT|O_WRONLY : O_WRONLY) | (keepExistingData ? 0 : O_TRUNC)
 		this.#fd = await EEFS.open(this.#handle, this.#name, flags, EEFS_ATTRIBUTE_NONE)
 		if(this.#fd  < 0) { throw new DOMException(`open error ${this.#fd}`, 'NotFoundError') }

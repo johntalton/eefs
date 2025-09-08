@@ -1,12 +1,13 @@
 # EEFS (eeprom file system)
 
+Implementation of [NASA EEFS](https://github.com/nasa/eefs) for Browser and Node
+
+
 [![npm Version](http://img.shields.io/npm/v/@johntalton/eefs.svg)](https://www.npmjs.com/package/@johntalton/eefs)
 ![GitHub package.json version](https://img.shields.io/github/package-json/v/johntalton/eefs)
 ![CI](https://github.com/johntalton/eefs/workflows/CI/badge.svg)
 ![GitHub](https://img.shields.io/github/license/johntalton/eefs)
 
-
-Implementation of [NASA EEFS](https://github.com/nasa/eefs).
 
 # Usage
 
